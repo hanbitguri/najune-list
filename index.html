@@ -11,12 +11,13 @@
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <link rel="icon" href="icon.svg">
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <link rel="stylesheet" href="styles.css">
 </head>
 <body>
 <div id="map"></div>
 <div id="banner" class="banner"></div>
+<div id="mapBanner" class="banner map-banner"></div>
+<div class="zoom glass"><button id="zoomIn" aria-label="+">＋</button><button id="zoomOut" aria-label="−">−</button></div>
 
 <header class="topbar glass">
   <div class="brand">🧸 <span data-i18n="appName" data-i18n="appName">나주네 리스트</span> <i class="dot" id="syncDot" data-i18n-title="syncStatus"></i></div>
@@ -75,6 +76,7 @@
     <label class="field"><span data-i18n="cost">예상 비용 (원)</span><input name="cost" type="number" inputmode="numeric" min="0" step="1000"></label>
     <label class="field"><span data-i18n="memo">메모</span><textarea name="memo" rows="2"></textarea></label>
     <div class="row end">
+      <a class="btn ghost" id="kakaoLink" target="_blank" rel="noopener" data-i18n="openKakao">카카오맵에서 열기</a>
       <button type="button" class="btn ghost" id="delPlace" data-i18n="delete">삭제</button>
       <button type="button" class="btn ghost" id="cancelForm" data-i18n="cancel">취소</button>
       <button type="submit" class="btn pink" data-i18n="save">저장</button>
@@ -91,9 +93,9 @@
 </div>
 <div id="toast" class="toast"></div>
 
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <script src="i18n.js"></script>
+<script src="map.js"></script>
 <script src="store.js"></script>
 <script src="app.js"></script>
 </body>

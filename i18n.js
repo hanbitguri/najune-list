@@ -24,6 +24,7 @@ const I18N = {
     syncOnline:'실시간 동기화 중이에요. 같은 코드로 들어오면 바로 같이 보여요 💞', syncConnecting:'연결 중…', syncLocal:'이 기기에만 저장하고 있어요',
     errNoLib:'Supabase 라이브러리를 못 불러와서 이 기기에만 저장돼요', errNoTable:'서버 테이블이 아직 없어서 이 기기에만 저장돼요 (supabase.sql 실행 필요)',
     errOffline:'오프라인이에요. 이 기기에 저장하고 있어요', errSync:'동기화 실패 — 이 기기에 저장했어요', errRealtime:'실시간 연결이 끊겼어요. 다시 연결 중…',
+    openKakao:'카카오맵에서 열기', errMap:'카카오 지도를 불러오지 못했어요. 도메인 등록이나 지도 사용 설정을 확인해 주세요. 목록과 동기화는 그대로 쓸 수 있어요.',
   },
   ja: {
     appName:'ナジュネ・リスト', syncStatus:'同期ステータス', searchPh:'スポットを検索',
@@ -49,6 +50,7 @@ const I18N = {
     syncOnline:'リアルタイム同期中。同じコードで入るとすぐに一緒に見られます 💞', syncConnecting:'接続中…', syncLocal:'この端末にだけ保存しています',
     errNoLib:'Supabaseを読み込めなかったため、この端末にだけ保存しています', errNoTable:'サーバーのテーブルがまだないため、この端末にだけ保存しています(supabase.sqlの実行が必要)',
     errOffline:'オフラインです。この端末に保存しています', errSync:'同期に失敗しました — この端末に保存しました', errRealtime:'リアルタイム接続が切れました。再接続中…',
+    openKakao:'カカオマップで開く', errMap:'カカオマップを読み込めませんでした。ドメイン登録や地図の利用設定を確認してください。リストと同期はそのまま使えます。',
   }
 };
 const LANGS = ['ko', 'ja'];

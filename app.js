@@ -7,10 +7,6 @@ function dist(a, b) { const R=6371, r=x=>x*Math.PI/180, dLa=r(b.lat-a.lat), dLo=
   const h=Math.sin(dLa/2)**2+Math.cos(r(a.lat))*Math.cos(r(b.lat))*Math.sin(dLo/2)**2; return 2*R*Math.asin(Math.sqrt(h)); }
 const fmtKm = d => d < 1 ? Math.round(d*1000)+'m' : d.toFixed(1)+'km';
 
-const map = L.map('map', { zoomControl: false, attributionControl: true }).setView([37.5665, 126.978], 12);
-L.control.zoom({ position: 'topright' }).addTo(map);
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap' }).addTo(map);
-const placeLayer = L.layerGroup().addTo(map), routeLayer = L.layerGroup().addTo(map);
 let filter = 'all', editing = null, pending = null, fitted = false;
 
 function toast(t) { const el = $('#toast'); el.textContent = t; el.classList.add('show'); clearTimeout(toast.t); toast.t = setTimeout(() => el.classList.remove('show'), 1800); }
@@ -29,6 +25,7 @@ function render() {
       <div class="body" data-act="edit"><h4>${esc(p.name)}</h4>
         <p><span class="badge" style="background:${STATUS[p.status].color}">${STATUS[p.status].label}</span>${esc([won(p.cost), p.memo, p.addedBy && t('by',{name:p.addedBy})].filter(Boolean).join(' · '))}</p></div>
       <button class="iconbtn heart ${p.heart?'on':''}" data-act="heart" aria-label="${t('heart')}">${p.heart?'💗':'🤍'}</button>
+      <a class="iconbtn" href="${kakaoLink(p)}" target="_blank" rel="noopener" aria-label="${t('openKakao')}" title="${t('openKakao')}">🧭</a>
       <button class="iconbtn" data-act="stop" aria-label="${t('addToTrip')}">＋</button>
     </li>`).join('') : `<p class="hint">${t('emptyPlaces')}</p>`;
 
@@ -41,6 +38,7 @@ function render() {
     cost += +p.cost || 0;
     html += `<li class="item" data-id="${p.id}" data-idx="${i}" style="animation-delay:${i*40}ms">
       <div class="num">${i+1}</div><div class="body" data-act="fly"><h4>${CATS[p.category].emoji} ${esc(p.name)}</h4><p>${esc(won(p.cost) || p.memo || '')}</p></div>
+      <a class="iconbtn" href="${kakaoLink(p)}" target="_blank" rel="noopener" aria-label="${t('openKakao')}">🧭</a>
       <button class="iconbtn" data-act="unstop" aria-label="${t('removeStop')}">✕</button><span class="handle" aria-label="${t('reorder')}">☰</span></li>`;
   });
   $('#stopList').innerHTML = html;
@@ -48,22 +46,10 @@ function render() {
   $('#me').value = Store.me;
 
   // map
-  placeLayer.clearLayers(); routeLayer.clearLayers();
-  const inTrip = new Set(stops.map(p => p.id));
-  s.places.forEach(p => {
-    if (inTrip.has(p.id)) return;
-    const icon = L.divIcon({ className:'', iconSize:[36,36], iconAnchor:[18,36], html:`<div class="pin ${p.status==='done'?'done':''}" style="background:${CATS[p.category].color}"><span>${CATS[p.category].emoji}</span></div>` });
-    L.marker([p.lat,p.lng],{icon}).addTo(placeLayer).bindPopup(`<b>${esc(p.name)}</b><br>${STATUS[p.status].label}${p.heart?' 💗':''}`);
-  });
-  if (stops.length) {
-    if (stops.length > 1) {
-      L.polyline(stops.map(p=>[p.lat,p.lng]),{color:'#fff',weight:8,opacity:.9}).addTo(routeLayer);
-      L.polyline(stops.map(p=>[p.lat,p.lng]),{color:'#9B87D9',weight:4,className:'route'}).addTo(routeLayer);
-    }
-    stops.forEach((p,i) => L.marker([p.lat,p.lng],{icon:L.divIcon({className:'',iconSize:[28,28],iconAnchor:[14,14],html:`<div class="stopnum" style="animation-delay:${i*80}ms">${i+1}</div>`}), zIndexOffset:1000})
-      .addTo(routeLayer).bindPopup(`<b>${i+1}. ${esc(p.name)}</b>`));
-  }
-  if (!fitted && s.places.length) { fitted = true; map.fitBounds(L.latLngBounds((stops.length>1?stops:s.places).map(p=>[p.lat,p.lng])).pad(.08), { maxZoom: 15, paddingBottomRight: innerWidth<900?[0,320]:[0,0], paddingTopLeft: innerWidth<900?[0,60]:[380,0] }); }
+  s.places.forEach(p => { Object.defineProperty(p, '_color', { value: CATS[p.category].color, configurable: true }); Object.defineProperty(p, '_emoji', { value: CATS[p.category].emoji, configurable: true }); });
+  MapView.draw({ places: s.places, stops, onPin: p => { MapView.flyTo(p.lat, p.lng); openForm(p); } });
+  if (!fitted && s.places.length) { fitted = true; const mob = innerWidth < 900;
+    MapView.fit(stops.length > 1 ? stops : s.places, mob ? [80, 24, 340, 24] : [96, 48, 48, 420]); }
 }
 Store.on(render);
 
@@ -74,12 +60,12 @@ $('#placeList').onclick = e => {
   const p = Store.get().places.find(x => x.id === id);
   if (act === 'heart') Store.updatePlace(id, { heart: !p.heart });
   else if (act === 'stop') { Store.addStop(id); toast(t('tAdded',{name:p.name})); }
-  else { map.flyTo([p.lat,p.lng], 16, { duration: .8 }); if (act==='edit') openForm(p); }
+  else { MapView.flyTo(p.lat, p.lng); if (act==='edit') openForm(p); }
 };
 $('#stopList').onclick = e => {
   const li = e.target.closest('.item'); if (!li) return; const act = e.target.closest('[data-act]')?.dataset.act;
   const p = Store.get().places.find(x => x.id === li.dataset.id);
-  if (act === 'unstop') Store.removeStop(p.id); else if (act === 'fly') map.flyTo([p.lat,p.lng], 16, { duration: .8 });
+  if (act === 'unstop') Store.removeStop(p.id); else if (act === 'fly') MapView.flyTo(p.lat, p.lng);
 };
 $('#tripSelect').onchange = e => Store.setActiveTrip(e.target.value);
 $('#newTrip').onclick = () => { const f = $('#tripForm'), n = Store.get().trips.length + 1; f.name.value = '';
@@ -135,24 +121,23 @@ document.querySelectorAll('.tab').forEach((b, i) => b.onclick = () => {
     if (Math.abs(dy) < 6) set((base + 1) % 3); else set(Math.max(0, Math.min(2, base + (dy < 0 ? 1 : -1)))); });
 })();
 
-// search (Nominatim)
-let st; $('#q').addEventListener('input', e => { clearTimeout(st); const q = e.target.value.trim(); if (q.length < 2) return $('#results').classList.remove('show'); st = setTimeout(() => search(q), 450); });
+// search (Kakao Places, biased to map center)
+let st; $('#q').addEventListener('input', e => { clearTimeout(st); const q = e.target.value.trim(); if (q.length < 2) return $('#results').classList.remove('show'); st = setTimeout(() => search(q), 350); });
 async function search(q) {
   try {
-    const c = map.getCenter();
-    const r = await fetch(`https://nominatim.openstreetmap.org/search?format=jsonv2&limit=8&accept-language=${LANG},ko&countrycodes=kr&viewbox=${c.lng-.5},${c.lat+.5},${c.lng+.5},${c.lat-.5}&q=${encodeURIComponent(q)}`);
-    const data = await r.json();
-    $('#results').innerHTML = data.length ? data.map((d, i) => `<li data-i="${i}">${esc(d.name || d.display_name.split(',')[0])}<small>${esc(d.display_name)}</small></li>`).join('') : `<li>${t('noResults')}</li>`;
+    const data = await MapView.search(q);
+    $('#results').innerHTML = data.length ? data.map((d, i) => `<li data-i="${i}">${CATS[d.category].emoji} ${esc(d.name)}<small>${esc(d.address)}</small></li>`).join('') : `<li>${t('noResults')}</li>`;
     $('#results').classList.add('show'); $('#results')._data = data;
   } catch { toast(t('tSearchFail')); }
 }
 $('#results').onclick = e => { const li = e.target.closest('li'); const d = $('#results')._data?.[li?.dataset.i]; if (!d) return;
   $('#results').classList.remove('show'); $('#q').value = ''; $('#q').blur();
-  const lat = +d.lat, lng = +d.lon; map.flyTo([lat,lng], 16, { duration: .8 });
-  const t = d.type || ''; const category = /restaurant|fast_food|food/.test(t) ? 'food' : /cafe/.test(t) ? 'cafe' : /hotel|hostel|guest/.test(t) ? 'stay' : /attraction|museum|park|viewpoint|palace/.test(t) ? 'sight' : 'etc';
-  openForm(null, { name: d.name || d.display_name.split(',')[0], lat, lng, category });
+  MapView.flyTo(d.lat, d.lng);
+  openForm(null, { name: d.name, lat: d.lat, lng: d.lng, category: d.category, address: d.address });
 };
-map.on('contextmenu', e => openForm(null, { name: '', lat: e.latlng.lat, lng: e.latlng.lng, category: 'etc' }));
+document.addEventListener('click', e => { if (!e.target.closest('.search')) $('#results').classList.remove('show'); });
+MapView.onLongPress((lat, lng) => openForm(null, { name: '', lat, lng, category: 'etc' }));
+$('#zoomIn').onclick = () => MapView.zoom(-1); $('#zoomOut').onclick = () => MapView.zoom(1);
 
 // form
 function seg(el, obj, val) { el.innerHTML = Object.entries(obj).map(([k,v]) => `<button type="button" data-v="${k}" class="${k===val?'on':''}">${v.emoji? v.emoji+' ':''}${v.label}</button>`).join('');
@@ -161,7 +146,7 @@ function openForm(p, draft) {
   editing = p; pending = draft; const f = $('#placeForm'), d = p || draft;
   $('#formTitle').textContent = p ? t('editPlace') : t('addPlace'); f.name.value = d.name || ''; f.cost.value = p?.cost || ''; f.memo.value = p?.memo || '';
   seg($('#catSeg'), CATS, d.category || 'etc'); seg($('#statusSeg'), STATUS, p?.status || 'wish');
-  $('#delPlace').style.display = p ? '' : 'none'; $('#modal').classList.add('show');
+  $('#delPlace').style.display = p ? '' : 'none'; $('#kakaoLink').href = kakaoLink(d); $('#kakaoLink').style.display = d.lat ? '' : 'none'; $('#modal').classList.add('show');
 }
 const closeForm = () => $('#modal').classList.remove('show');
 $('#cancelForm').onclick = closeForm; $('#modal').onclick = e => { if (e.target.id === 'modal') closeForm(); };
@@ -214,6 +199,9 @@ Store.on((s, remote) => { if (remote) toast(t('tRemote')); });
 document.querySelectorAll('.lang button').forEach(b => b.onclick = () => setLang(b.dataset.lang));
 document.addEventListener('langchange', () => { render(); syncUI(...lastSync); if ($('#modal').classList.contains('show')) $('#formTitle').textContent = editing ? t('editPlace') : t('addPlace'); });
 applyI18n();
+MapView.init('map').catch(err => { console.warn('Kakao map failed:', err.message); const b = $('#mapBanner'); b.textContent = '🗺️ ' + t('errMap'); b.classList.add('show'); document.body.classList.add('nomap'); });
+addEventListener('resize', () => MapView.relayout());
+document.addEventListener('langchange', () => { if ($('#mapBanner').classList.contains('show')) $('#mapBanner').textContent = '🗺️ ' + t('errMap'); });
 Store.init(adapter).then(() => {
   const qs = new URLSearchParams(location.search);
   if (qs.has('sample')) loadSample();
