@@ -31,7 +31,7 @@ const MapView = (() => {
       under.setMap(map); top.setMap(map); lines.push(under, top);
       // "draw-in" animation along the route
       const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches, dur = reduce ? 0 : 700, t0 = performance.now();
-      const step = now => { const k = dur ? Math.min(1, (now - t0) / dur) : 1, e = 1 - Math.pow(1 - k, 3), f = e * (path.length - 1), i = Math.floor(f);
+      const step = now => { const k = dur ? Math.max(0, Math.min(1, (now - t0) / dur)) : 1, e = 1 - Math.pow(1 - k, 3), f = e * (path.length - 1), i = Math.floor(f);
         const pts = path.slice(0, i + 1);
         if (i < path.length - 1) { const a = path[i], b = path[i + 1], r = f - i; pts.push(LL(a.getLat() + (b.getLat() - a.getLat()) * r, a.getLng() + (b.getLng() - a.getLng()) * r)); }
         under.setPath(pts); top.setPath(pts); if (k < 1) anim = requestAnimationFrame(step); };
