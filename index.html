@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,maximum-scale=1">
+<meta name="theme-color" content="#FAF7F2">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="나주네 리스트">
+<title>나주네 리스트</title>
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" href="icon.svg">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div id="map"></div>
+<div id="banner" class="banner"></div>
+
+<header class="topbar glass">
+  <div class="brand">🧸 <span data-i18n="appName" data-i18n="appName">나주네 리스트</span> <i class="dot" id="syncDot" data-i18n-title="syncStatus"></i></div>
+  <div class="search">
+    <input id="q" type="search" placeholder="장소 검색 (예: 성수 카페)" data-i18n-ph="searchPh" autocomplete="off">
+    <ul id="results" class="results"></ul>
+  </div>
+  <div class="lang" role="group" aria-label="Language"><span class="lang-ink"></span><button data-lang="ko">한</button><button data-lang="ja">日</button></div>
+</header>
+
+<aside id="sheet" class="sheet">
+  <div class="grab" id="grab"><span></span></div>
+  <nav class="tabs">
+    <button class="tab active" data-tab="places" data-i18n="tabPlaces">장소</button>
+    <button class="tab" data-tab="trips" data-i18n="tabTrips">일정</button>
+    <button class="tab" data-tab="share" data-i18n="tabShare">공유</button>
+    <span class="tab-ink"></span>
+  </nav>
+  <section class="panel active" id="panel-places">
+    <div class="chips" id="filters"></div>
+    <ul class="list" id="placeList"></ul>
+  </section>
+  <section class="panel" id="panel-trips">
+    <div class="row">
+      <select id="tripSelect"></select>
+      <button class="btn mint" id="newTrip" data-i18n="newTrip">+ 새 일정</button>
+    </div>
+    <div class="trip-meta" id="tripMeta"></div>
+    <ol class="list stops" id="stopList"></ol>
+    <p class="hint" data-i18n="tripHint">장소 카드의 ＋일정 버튼으로 추가하고, ☰ 를 끌어서 순서를 바꿔요.</p>
+  </section>
+  <section class="panel" id="panel-share">
+    <div class="space-card">
+      <div class="space-top"><span data-i18n="spaceCode">우리 공간 코드</span><b id="spaceCode"></b></div>
+      <p class="hint" id="syncText"></p>
+      <div class="row"><input id="spaceInput" class="inp" placeholder="코드 입력해서 참여" data-i18n-ph="joinPh"><button class="btn mint" id="joinSpace" data-i18n="join">참여</button></div>
+      <div class="row" style="margin-top:8px"><button class="btn lavender" id="copyLink" data-i18n="copyLink">초대 링크 복사</button><button class="btn ghost" id="newSpace" data-i18n="newSpace">새 코드 만들기</button></div>
+    </div>
+    <p class="hint" data-i18n="backupHint">백업용으로 JSON 내보내기/가져오기도 할 수 있어요.</p>
+    <div class="row wrap">
+      <button class="btn lavender" id="exportBtn" data-i18n="export">내보내기 (JSON)</button>
+      <label class="btn butter" data-i18n="import">가져오기<input type="file" id="importFile" accept="application/json" hidden></label>
+      <button class="btn pink" id="sampleBtn" data-i18n="sample">샘플 데이터</button>
+      <button class="btn ghost" id="resetBtn" data-i18n="reset">전체 초기화</button>
+    </div>
+    <label class="field"><span data-i18n="myName">내 이름</span><input id="me" placeholder="예: 한빛" data-i18n-ph="myNamePh"></label>
+  </section>
+</aside>
+
+<div id="modal" class="modal" aria-hidden="true">
+  <form class="card" id="placeForm">
+    <h3 id="formTitle">장소 추가</h3>
+    <label class="field"><span data-i18n="name">이름</span><input name="name" required></label>
+    <div class="field"><span data-i18n="category">카테고리</span><div class="seg" id="catSeg"></div></div>
+    <div class="field"><span data-i18n="status">상태</span><div class="seg" id="statusSeg"></div></div>
+    <label class="field"><span data-i18n="cost">예상 비용 (원)</span><input name="cost" type="number" inputmode="numeric" min="0" step="1000"></label>
+    <label class="field"><span data-i18n="memo">메모</span><textarea name="memo" rows="2"></textarea></label>
+    <div class="row end">
+      <button type="button" class="btn ghost" id="delPlace" data-i18n="delete">삭제</button>
+      <button type="button" class="btn ghost" id="cancelForm" data-i18n="cancel">취소</button>
+      <button type="submit" class="btn pink" data-i18n="save">저장</button>
+    </div>
+  </form>
+</div>
+<div id="tripModal" class="modal" aria-hidden="true">
+  <form class="card" id="tripForm">
+    <h3 data-i18n="newTripTitle">새 일정 만들기</h3>
+    <label class="field"><span data-i18n="tripName">일정 이름</span><input name="name" required maxlength="40" placeholder="예: 부산 1일차" data-i18n-ph="tripNamePh"></label>
+    <div class="seg" id="tripPresets" style="margin-top:12px"></div>
+    <div class="row end"><button type="button" class="btn ghost" id="cancelTrip" data-i18n="cancel">취소</button><button type="submit" class="btn mint" data-i18n="create">만들기</button></div>
+  </form>
+</div>
+<div id="toast" class="toast"></div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="i18n.js"></script>
+<script src="store.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
