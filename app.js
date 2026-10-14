@@ -1,4 +1,7 @@
-const CATS = { food:{get label(){return t('catFood')},emoji:'🍜',color:'#F7C6D0'}, cafe:{get label(){return t('catCafe')},emoji:'☕️',color:'#F8E7A8'}, stay:{get label(){return t('catStay')},emoji:'🛏️',color:'#D9CFF3'}, sight:{get label(){return t('catSight')},emoji:'🎡',color:'#BFE6D6'}, etc:{get label(){return t('catEtc')},emoji:'📍',color:'#F3EDE3'} };
+let CATS = {};
+const catLabel = c => (c.name && c.name.trim()) || (c.key ? t(c.key) : '');
+function rebuildCats() { CATS = {}; (Store.get().categories || DEFAULT_CATS).forEach(c => { CATS[c.id] = { id: c.id, emoji: c.emoji, color: c.color, get label() { return catLabel(c); } }; }); }
+const cat = id => CATS[id] || CATS.etc || { emoji: '📍', color: '#F3EDE3', label: '' };
 const STATUS = { wish:{get label(){return t('stWish')},color:'#F7C6D0'}, planned:{get label(){return t('stPlanned')},color:'#D9CFF3'}, done:{get label(){return t('stDone')},color:'#BFE6D6'} };
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -13,15 +16,17 @@ function toast(t) { const el = $('#toast'); el.textContent = t; el.classList.add
 
 /* ---------- rendering ---------- */
 function render() {
+  rebuildCats();
   const s = Store.get(), trip = Store.activeTrip();
   // filters
   const fs = [['all',t('fAll')],['heart',t('fHeart')],...Object.entries(CATS).map(([k,v])=>[k,v.emoji+' '+v.label]),...Object.entries(STATUS).map(([k,v])=>['s:'+k,v.label])];
-  $('#filters').innerHTML = fs.map(([k,l]) => `<button class="chip ${filter===k?'on':''}" data-f="${k}">${l}</button>`).join('');
+  if (filter !== 'all' && filter !== 'heart' && !filter.startsWith('s:') && !CATS[filter]) filter = 'all';
+  $('#filters').innerHTML = fs.map(([k,l]) => `<button class="chip ${filter===k?'on':''}" data-f="${k}">${esc(l)}</button>`).join('') + `<button class="chip manage" id="manageCats" aria-label="${t('manageCats')}">⚙︎ ${t('manageCats')}</button>`;
   const shown = s.places.filter(p => filter==='all' || (filter==='heart'?p.heart: filter.startsWith('s:')? p.status===filter.slice(2) : p.category===filter))
     .sort((a,b)=>(b.heart-a.heart)||(b.createdAt-a.createdAt));
   $('#placeList').innerHTML = shown.length ? shown.map((p,i) => `
     <li class="item" style="animation-delay:${i*30}ms" data-id="${p.id}">
-      <div class="ico" style="background:${CATS[p.category].color}">${CATS[p.category].emoji}</div>
+      ${thumbHtml(p)}
       <div class="body" data-act="edit"><h4>${esc(p.name)}</h4>
         <p><span class="badge" style="background:${STATUS[p.status].color}">${STATUS[p.status].label}</span>${esc([won(p.cost), p.memo, p.addedBy && t('by',{name:p.addedBy})].filter(Boolean).join(' · '))}</p></div>
       <button class="iconbtn heart ${p.heart?'on':''}" data-act="heart" aria-label="${t('heart')}">${p.heart?'💗':'🤍'}</button>
@@ -37,7 +42,7 @@ function render() {
     if (i) { const d = dist(stops[i-1], p); total += d; html += `<li class="leg">${t('leg',{d:fmtKm(d)})}</li>`; }
     cost += +p.cost || 0;
     html += `<li class="item" data-id="${p.id}" data-idx="${i}" style="animation-delay:${i*40}ms">
-      <div class="num">${i+1}</div><div class="body" data-act="fly"><h4>${CATS[p.category].emoji} ${esc(p.name)}</h4><p>${esc(won(p.cost) || p.memo || '')}</p></div>
+      <div class="num">${i+1}</div><div class="body" data-act="fly"><h4>${cat(p.category).emoji} ${esc(p.name)}</h4><p>${esc(won(p.cost) || p.memo || '')}</p></div>
       <a class="iconbtn" href="${kakaoLink(p)}" target="_blank" rel="noopener" aria-label="${t('openKakao')}">🧭</a>
       <button class="iconbtn" data-act="unstop" aria-label="${t('removeStop')}">✕</button><span class="handle" aria-label="${t('reorder')}">☰</span></li>`;
   });
@@ -46,7 +51,7 @@ function render() {
   $('#me').value = Store.me;
 
   // map
-  s.places.forEach(p => { Object.defineProperty(p, '_color', { value: CATS[p.category].color, configurable: true }); Object.defineProperty(p, '_emoji', { value: CATS[p.category].emoji, configurable: true }); });
+  s.places.forEach(p => { Object.defineProperty(p, '_color', { value: cat(p.category).color, configurable: true }); Object.defineProperty(p, '_emoji', { value: cat(p.category).emoji, configurable: true }); });
   MapView.draw({ places: s.places, stops, onPin: p => { MapView.flyTo(p.lat, p.lng); openForm(p); } });
   if (!fitted && s.places.length) { fitted = true; const mob = innerWidth < 900;
     MapView.fit(stops.length > 1 ? stops : s.places, mob ? [80, 24, 340, 24] : [96, 48, 48, 420]); }
@@ -54,7 +59,7 @@ function render() {
 Store.on(render);
 
 /* ---------- interactions ---------- */
-$('#filters').onclick = e => { const f = e.target.dataset.f; if (f) { filter = f; render(); } };
+$('#filters').onclick = e => { if (e.target.closest('#manageCats')) return openCats(); const f = e.target.dataset.f; if (f) { filter = f; render(); } };
 $('#placeList').onclick = e => {
   const li = e.target.closest('.item'); if (!li) return; const id = li.dataset.id, act = e.target.closest('[data-act]')?.dataset.act;
   const p = Store.get().places.find(x => x.id === id);
@@ -126,18 +131,63 @@ let st; $('#q').addEventListener('input', e => { clearTimeout(st); const q = e.t
 async function search(q) {
   try {
     const data = await MapView.search(q);
-    $('#results').innerHTML = data.length ? data.map((d, i) => `<li data-i="${i}">${CATS[d.category].emoji} ${esc(d.name)}<small>${esc(d.address)}</small></li>`).join('') : `<li>${t('noResults')}</li>`;
+    $('#results').innerHTML = data.length ? data.map((d, i) => `<li data-i="${i}">${cat(d.category).emoji} ${esc(d.name)}<small>${esc(d.address)}</small></li>`).join('') : `<li>${t('noResults')}</li>`;
     $('#results').classList.add('show'); $('#results')._data = data;
   } catch { toast(t('tSearchFail')); }
 }
 $('#results').onclick = e => { const li = e.target.closest('li'); const d = $('#results')._data?.[li?.dataset.i]; if (!d) return;
   $('#results').classList.remove('show'); $('#q').value = ''; $('#q').blur();
   MapView.flyTo(d.lat, d.lng);
-  openForm(null, { name: d.name, lat: d.lat, lng: d.lng, category: d.category, address: d.address });
+  openForm(null, { name: d.name, lat: d.lat, lng: d.lng, category: CATS[d.category] ? d.category : 'etc', address: d.address, kakaoId: d.kakaoId });
 };
 document.addEventListener('click', e => { if (!e.target.closest('.search')) $('#results').classList.remove('show'); });
 MapView.onLongPress((lat, lng) => openForm(null, { name: '', lat, lng, category: 'etc' }));
 $('#zoomIn').onclick = () => MapView.zoom(-1); $('#zoomOut').onclick = () => MapView.zoom(1);
+
+// thumbnails: Kakao gives no photo API; user sets one by URL or upload (resized JPEG dataURL)
+const thumbHtml = p => { const c = cat(p.category);
+  return p.thumb ? `<div class="ico thumb" style="background:${c.color}"><img src="${esc(p.thumb)}" alt="" loading="lazy" onerror="this.remove()"><i>${c.emoji}</i></div>`
+    : `<div class="ico ph" style="--c:${c.color}">${c.emoji}</div>`; };
+let thumbDraft = '';
+function showThumb() { const box = $('#thumbPreview'); const c = cat($('#catSeg').dataset.v);
+  box.innerHTML = thumbDraft ? `<img src="${esc(thumbDraft)}" alt="">` : `<span>${c.emoji}</span>`; box.style.setProperty('--c', c.color);
+  $('#thumbRemove').style.display = thumbDraft ? '' : 'none'; $('#thumbUrl').value = thumbDraft.startsWith('data:') ? '' : thumbDraft; }
+function resizeImage(file, max = 300) {
+  return new Promise((res, rej) => { const img = new Image(), url = URL.createObjectURL(file);
+    img.onload = () => { const k = Math.min(1, max / Math.max(img.width, img.height)), c = document.createElement('canvas');
+      c.width = Math.round(img.width * k); c.height = Math.round(img.height * k); c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+      URL.revokeObjectURL(url); res(c.toDataURL('image/jpeg', 0.72)); };
+    img.onerror = () => { URL.revokeObjectURL(url); rej(); }; img.src = url; });
+}
+$('#thumbFile').onchange = async e => { const f = e.target.files[0]; if (!f) return; try { thumbDraft = await resizeImage(f); showThumb(); } catch { toast(t('tPhotoFail')); } e.target.value = ''; };
+$('#thumbUrl').onchange = e => { const v = e.target.value.trim(); if (!v) return; if (!/^https:\/\//.test(v)) return toast(t('tPhotoFail'));
+  const img = new Image(); img.onload = () => { thumbDraft = v; showThumb(); }; img.onerror = () => toast(t('tPhotoFail')); img.src = v; };
+$('#thumbRemove').onclick = () => { thumbDraft = ''; showThumb(); };
+$('#catSeg').addEventListener('click', () => setTimeout(showThumb));
+
+// category manager
+function openCats() { renderCats(); $('#catModal').classList.add('show'); }
+function renderCats() { rebuildCats(); const cs = Store.get().categories;
+  $('#catList').innerHTML = cs.map((c, i) => `<li class="catrow" data-id="${c.id}">
+    <input class="emoji" value="${esc(c.emoji)}" maxlength="4" aria-label="emoji" data-k="emoji">
+    <input class="cname" value="${esc(c.name || '')}" placeholder="${esc(c.key ? t(c.key) : t('catNamePh'))}" maxlength="20" data-k="name">
+    <div class="swatches">${CAT_PALETTE.map(col => `<button type="button" class="sw ${col === c.color ? 'on' : ''}" style="background:${col}" data-color="${col}" aria-label="${col}"></button>`).join('')}</div>
+    <div class="catbtns"><button type="button" class="iconbtn" data-mv="-1" ${i ? '' : 'disabled'} aria-label="${t('moveUp')}">↑</button><button type="button" class="iconbtn" data-mv="1" ${i < cs.length - 1 ? '' : 'disabled'} aria-label="${t('moveDown')}">↓</button>
+    ${c.id === 'etc' ? '' : `<button type="button" class="iconbtn del" data-del aria-label="${t('delete')}">🗑</button>`}</div></li>`).join(''); }
+$('#catList').addEventListener('change', e => { const row = e.target.closest('.catrow'), k = e.target.dataset.k; if (!row || !k) return;
+  const v = e.target.value.trim(); if (k === 'emoji' && !v) return renderCats(); Store.updateCategory(row.dataset.id, { [k]: v }); });
+$('#catList').addEventListener('click', e => { const row = e.target.closest('.catrow'); if (!row) return; const id = row.dataset.id;
+  const sw = e.target.closest('[data-color]'), mv = e.target.closest('[data-mv]');
+  if (sw) { Store.updateCategory(id, { color: sw.dataset.color }); renderCats(); }
+  else if (mv) { Store.moveCategory(id, +mv.dataset.mv); renderCats(); }
+  else if (e.target.closest('[data-del]')) { const c = cat(id); if (confirm(t('cDeleteCat', { name: c.label }))) { Store.removeCategory(id); renderCats(); } } });
+$('#addCat').onclick = () => { Store.addCategory({ name: t('newCat') }); renderCats(); setTimeout(() => { const ins = $('#catList').querySelectorAll('.cname'); ins[ins.length - 2]?.select(); }, 50); };
+$('#closeCats').onclick = () => $('#catModal').classList.remove('show');
+$('#catModal').onclick = e => { if (e.target.id === 'catModal') $('#catModal').classList.remove('show'); };
+document.addEventListener('langchange', () => { if ($('#catModal').classList.contains('show')) renderCats(); });
+
+// mobile: collapse sheet when the map is actually dragged
+MapView.onDragStart(() => { if (innerWidth >= 900) return; const sh = $('#sheet'); if (!sh.classList.contains('min')) { sh.classList.remove('full'); sh.classList.add('min'); } });
 
 // form
 function seg(el, obj, val) { el.innerHTML = Object.entries(obj).map(([k,v]) => `<button type="button" data-v="${k}" class="${k===val?'on':''}">${v.emoji? v.emoji+' ':''}${v.label}</button>`).join('');
@@ -145,14 +195,14 @@ function seg(el, obj, val) { el.innerHTML = Object.entries(obj).map(([k,v]) => `
 function openForm(p, draft) {
   editing = p; pending = draft; const f = $('#placeForm'), d = p || draft;
   $('#formTitle').textContent = p ? t('editPlace') : t('addPlace'); f.name.value = d.name || ''; f.cost.value = p?.cost || ''; f.memo.value = p?.memo || '';
-  seg($('#catSeg'), CATS, d.category || 'etc'); seg($('#statusSeg'), STATUS, p?.status || 'wish');
+  rebuildCats(); seg($('#catSeg'), CATS, CATS[d.category] ? d.category : 'etc'); thumbDraft = p ? (p.thumb || '') : (d.thumb || ''); showThumb(); seg($('#statusSeg'), STATUS, p?.status || 'wish');
   $('#delPlace').style.display = p ? '' : 'none'; $('#kakaoLink').href = kakaoLink(d); $('#kakaoLink').style.display = d.lat ? '' : 'none'; $('#modal').classList.add('show');
 }
 const closeForm = () => $('#modal').classList.remove('show');
 $('#cancelForm').onclick = closeForm; $('#modal').onclick = e => { if (e.target.id === 'modal') closeForm(); };
 $('#delPlace').onclick = () => { if (editing && confirm(t('cDelete'))) { Store.removePlace(editing.id); closeForm(); } };
 $('#placeForm').onsubmit = e => { e.preventDefault(); const f = e.target;
-  const v = { name: f.name.value.trim(), cost: +f.cost.value || 0, memo: f.memo.value.trim(), category: $('#catSeg').dataset.v, status: $('#statusSeg').dataset.v };
+  const v = { name: f.name.value.trim(), cost: +f.cost.value || 0, memo: f.memo.value.trim(), category: $('#catSeg').dataset.v, status: $('#statusSeg').dataset.v, thumb: thumbDraft || '' };
   if (editing) Store.updatePlace(editing.id, v); else { Store.addPlace({ ...pending, ...v }); toast(t('tPinned')); }
   closeForm(); };
 

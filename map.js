@@ -1,7 +1,7 @@
 /* Map adapter (Kakao Maps JS SDK). App code only talks to MapView. */
 const KAKAO_KEY = '4c7db2d207638e9973f03ea2354825df'; // public JS key, domain-restricted
 const MapView = (() => {
-  let map, ps, ready = false, overlays = [], lines = [], pending = {}, onLong = null, anim = 0;
+  let map, ps, ready = false, overlays = [], lines = [], pending = {}, onLong = null, onDrag = null, anim = 0;
   const LL = (lat, lng) => new kakao.maps.LatLng(lat, lng);
   function loadSdk() {
     return new Promise((res, rej) => {
@@ -60,6 +60,7 @@ const MapView = (() => {
       await loadSdk();
       map = new kakao.maps.Map(document.getElementById(elId), { center: LL(37.5665, 126.978), level: 7 });
       ps = new kakao.maps.services.Places(); ready = true; longPress();
+      kakao.maps.event.addListener(map, 'dragstart', () => onDrag?.());   // fires only on real drags, not taps
       if (pending.draw) draw(pending.draw); if (pending.fit) fit(...pending.fit); pending = {};
     },
     draw(args) { ready ? draw(args) : (pending.draw = args); },
@@ -68,6 +69,7 @@ const MapView = (() => {
     zoom(d) { ready && map.setLevel(map.getLevel() + d, { animate: { duration: 250 } }); },
     relayout() { ready && map.relayout(); },
     onLongPress(cb) { onLong = cb; },
+    onDragStart(cb) { onDrag = cb; },
     search(q) {
       return new Promise((res, rej) => { if (!ready) return rej(new Error('map not ready'));
         const CAT = { FD6: 'food', CE7: 'cafe', AD5: 'stay', AT4: 'sight' };

@@ -70,6 +70,15 @@
 <div id="modal" class="modal" aria-hidden="true">
   <form class="card" id="placeForm">
     <h3 id="formTitle">장소 추가</h3>
+    <div class="thumbrow">
+      <div class="thumb-preview" id="thumbPreview"></div>
+      <div class="thumb-ctl">
+        <span class="lbl" data-i18n="photo">사진</span>
+        <div class="row"><label class="btn butter sm"><span data-i18n="photoUpload">사진 올리기</span><input type="file" id="thumbFile" accept="image/*" hidden></label>
+        <button type="button" class="btn ghost sm" id="thumbRemove" data-i18n="photoRemove">지우기</button></div>
+        <input id="thumbUrl" class="inp sm" type="url" inputmode="url" placeholder="이미지 주소 (https://…)" data-i18n-ph="photoUrlPh">
+      </div>
+    </div>
     <label class="field"><span data-i18n="name">이름</span><input name="name" required></label>
     <div class="field"><span data-i18n="category">카테고리</span><div class="seg" id="catSeg"></div></div>
     <div class="field"><span data-i18n="status">상태</span><div class="seg" id="statusSeg"></div></div>
@@ -82,6 +91,14 @@
       <button type="submit" class="btn pink" data-i18n="save">저장</button>
     </div>
   </form>
+</div>
+<div id="catModal" class="modal" aria-hidden="true">
+  <div class="card">
+    <h3 data-i18n="manageCats">카테고리 관리</h3>
+    <p class="hint" data-i18n="catHint">이모지·이름·색을 바꾸고 화살표로 순서를 바꿔요. 지운 카테고리의 장소는 기타로 옮겨져요.</p>
+    <ul class="catlist" id="catList"></ul>
+    <div class="row end"><button type="button" class="btn lavender" id="addCat" data-i18n="addCat">+ 카테고리 추가</button><button type="button" class="btn mint" id="closeCats" data-i18n="done">완료</button></div>
+  </div>
 </div>
 <div id="tripModal" class="modal" aria-hidden="true">
   <form class="card" id="tripForm">

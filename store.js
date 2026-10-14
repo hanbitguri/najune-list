@@ -48,8 +48,8 @@ const SupabaseAdapter = (space) => {
     },
     async push(state) {
       if (!sb) return;
-      const { places, trips } = state;
-      const { error } = await sb.from('spaces').upsert({ id: space, data: { version: 1, places, trips }, client_id: clientId, updated_at: new Date().toISOString() });
+      const { places, trips, categories } = state;
+      const { error } = await sb.from('spaces').upsert({ id: space, data: { version: 2, places, trips, categories }, client_id: clientId, updated_at: new Date().toISOString() });
       if (error) a.setStatus('local', 'errSync');
     },
     async save(state) { await local.save(state); clearTimeout(t); t = setTimeout(() => a.push(state), 300); },
@@ -75,9 +75,28 @@ const SupabaseAdapter = (space) => {
   return a;
 };
 
+const DEFAULT_CATS = [
+  { id:'food',    key:'catFood',    emoji:'🍜', color:'#F7C6D0' },
+  { id:'cafe',    key:'catCafe',    emoji:'☕️', color:'#F8E7A8' },
+  { id:'stay',    key:'catStay',    emoji:'🛏️', color:'#D9CFF3' },
+  { id:'sight',   key:'catSight',   emoji:'🎡', color:'#BFE6D6' },
+  { id:'curious', key:'catCurious', emoji:'🤔', color:'#CFE3F7' },
+  { id:'etc',     key:'catEtc',     emoji:'📍', color:'#F3EDE3' },
+];
+const CAT_PALETTE = ['#F7C6D0','#F8E7A8','#D9CFF3','#BFE6D6','#CFE3F7','#FAD6BF','#E6D3C2','#F3EDE3'];
+// Migrate older space data: add categories, make sure every place points to a real category.
+function migrate(s) {
+  let changed = false;
+  if (!Array.isArray(s.categories) || !s.categories.length) { s.categories = DEFAULT_CATS.map(c => ({ ...c })); changed = true; }
+  if (!s.categories.find(c => c.id === 'etc')) { s.categories.push({ ...DEFAULT_CATS.at(-1) }); changed = true; }
+  const ids = new Set(s.categories.map(c => c.id));
+  (s.places || []).forEach(p => { if (!ids.has(p.category)) { p.category = 'etc'; changed = true; } });
+  return changed;
+}
+
 const Store = (() => {
   let adapter, state = empty(), listeners = [];
-  function empty() { return { version: 1, places: [], trips: [], activeTripId: null }; }
+  function empty() { return { version: 2, places: [], trips: [], categories: DEFAULT_CATS.map(c => ({ ...c })), activeTripId: null }; }
   const uid = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
   const emit = (remote) => listeners.forEach(f => f(state, remote));
   const commit = () => { adapter.save(state); emit(); };
@@ -86,8 +105,8 @@ const Store = (() => {
     uid, get adapter() { return adapter; },
     async init(a) {
       adapter = a; const active = localStorage.getItem('najune-active-trip');
-      state = { ...empty(), ...((await adapter.load()) || {}) }; state.activeTripId = active; fixActive();
-      adapter.subscribe((s, remote) => { const act = state.activeTripId; state = { ...empty(), ...s, activeTripId: act }; fixActive(); emit(remote); });
+      const loaded = await adapter.load(); state = { ...empty(), ...(loaded || {}) }; const mig = migrate(state); state.activeTripId = active; fixActive(); if (loaded && mig) adapter.save(state);
+      adapter.subscribe((s, remote) => { const act = state.activeTripId; state = { ...empty(), ...s, activeTripId: act }; migrate(state); fixActive(); emit(remote); });
       emit();
     },
     get: () => state,
@@ -104,13 +123,23 @@ const Store = (() => {
       const p = state.places.find(x => x.id === pid); if (p && p.status === 'wish') p.status = 'planned'; commit(); },
     removeStop(pid) { const t = this.activeTrip(); if (t) t.stops = t.stops.filter(s => s !== pid); commit(); },
     reorder(from, to) { const t = this.activeTrip(); if (!t) return; const [m] = t.stops.splice(from, 1); t.stops.splice(to, 0, m); commit(); },
-    replace(s) { state = { ...empty(), ...s }; fixActive(); if (s.activeTripId) this.setActiveTrip(s.activeTripId, true); commit(); },
+    replace(s) { state = { ...empty(), ...s }; migrate(state); fixActive(); if (s.activeTripId) this.setActiveTrip(s.activeTripId, true); commit(); },
     merge(s) {
       const byId = new Map(state.places.map(p => [p.id, p]));
       (s.places || []).forEach(p => { const o = byId.get(p.id); if (!o || (p.updatedAt || 0) > (o.updatedAt || 0)) byId.set(p.id, p); });
       state.places = [...byId.values()];
       const tr = new Map(state.trips.map(t => [t.id, t])); (s.trips || []).forEach(t => tr.set(t.id, t));
-      state.trips = [...tr.values()]; fixActive(); commit(); },
+      state.trips = [...tr.values()];
+      const cs = new Map(state.categories.map(c => [c.id, c])); (s.categories || []).forEach(c => { if (!cs.has(c.id)) { state.categories.splice(state.categories.length - 1, 0, c); cs.set(c.id, c); } });
+      migrate(state); fixActive(); commit(); },
+    // categories
+    addCategory(c) { const cat = { id: 'c' + uid(), name: '', emoji: '⭐️', color: CAT_PALETTE[state.categories.length % CAT_PALETTE.length], ...c };
+      state.categories.splice(Math.max(0, state.categories.length - 1), 0, cat); commit(); return cat; },   // keep 기타 last
+    updateCategory(id, patch) { const c = state.categories.find(x => x.id === id); if (!c) return;
+      if ('name' in patch && c.key && patch.name.trim() === '') patch.name = undefined; Object.assign(c, patch); if (c.name === undefined) delete c.name; commit(); },
+    moveCategory(id, dir) { const a = state.categories, i = a.findIndex(c => c.id === id), j = i + dir; if (i < 0 || j < 0 || j >= a.length) return; [a[i], a[j]] = [a[j], a[i]]; commit(); },
+    removeCategory(id) { if (id === 'etc') return; state.categories = state.categories.filter(c => c.id !== id);
+      state.places.forEach(p => { if (p.category === id) { p.category = 'etc'; p.updatedAt = Date.now(); } }); commit(); },
     reset() { state = empty(); commit(); }
   };
 })();

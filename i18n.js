@@ -24,7 +24,7 @@ const I18N = {
     syncOnline:'실시간 동기화 중이에요. 같은 코드로 들어오면 바로 같이 보여요 💞', syncConnecting:'연결 중…', syncLocal:'이 기기에만 저장하고 있어요',
     errNoLib:'Supabase 라이브러리를 못 불러와서 이 기기에만 저장돼요', errNoTable:'서버 테이블이 아직 없어서 이 기기에만 저장돼요 (supabase.sql 실행 필요)',
     errOffline:'오프라인이에요. 이 기기에 저장하고 있어요', errSync:'동기화 실패 — 이 기기에 저장했어요', errRealtime:'실시간 연결이 끊겼어요. 다시 연결 중…',
-    openKakao:'카카오맵에서 열기', errMap:'카카오 지도를 불러오지 못했어요. 도메인 등록이나 지도 사용 설정을 확인해 주세요. 목록과 동기화는 그대로 쓸 수 있어요.',
+    openKakao:'카카오맵에서 열기', catCurious:'궁금한 곳', manageCats:'카테고리 관리', catHint:'이모지·이름·색을 바꾸고 화살표로 순서를 바꿔요. 지운 카테고리의 장소는 기타로 옮겨져요.', addCat:'+ 카테고리 추가', done:'완료', newCat:'새 카테고리', catNamePh:'카테고리 이름', moveUp:'위로', moveDown:'아래로', cDeleteCat:'"{name}" 카테고리를 지울까요? 이 카테고리의 장소는 기타로 옮겨져요.', photo:'사진', photoUpload:'사진 올리기', photoRemove:'지우기', photoUrlPh:'이미지 주소 (https://…)', tPhotoFail:'이미지를 불러오지 못했어요', errMap:'카카오 지도를 불러오지 못했어요. 도메인 등록이나 지도 사용 설정을 확인해 주세요. 목록과 동기화는 그대로 쓸 수 있어요.',
   },
   ja: {
     appName:'ナジュネ・リスト', syncStatus:'同期ステータス', searchPh:'スポットを検索',
@@ -50,7 +50,7 @@ const I18N = {
     syncOnline:'リアルタイム同期中。同じコードで入るとすぐに一緒に見られます 💞', syncConnecting:'接続中…', syncLocal:'この端末にだけ保存しています',
     errNoLib:'Supabaseを読み込めなかったため、この端末にだけ保存しています', errNoTable:'サーバーのテーブルがまだないため、この端末にだけ保存しています(supabase.sqlの実行が必要)',
     errOffline:'オフラインです。この端末に保存しています', errSync:'同期に失敗しました — この端末に保存しました', errRealtime:'リアルタイム接続が切れました。再接続中…',
-    openKakao:'カカオマップで開く', errMap:'カカオマップを読み込めませんでした。ドメイン登録や地図の利用設定を確認してください。リストと同期はそのまま使えます。',
+    openKakao:'カカオマップで開く', catCurious:'気になる所', manageCats:'カテゴリー管理', catHint:'絵文字・名前・色を変えて、矢印で並べ替えできます。削除したカテゴリーのスポットは「その他」に移ります。', addCat:'+ カテゴリーを追加', done:'完了', newCat:'新しいカテゴリー', catNamePh:'カテゴリー名', moveUp:'上へ', moveDown:'下へ', cDeleteCat:'「{name}」を削除しますか?このカテゴリーのスポットは「その他」に移ります。', photo:'写真', photoUpload:'写真をアップ', photoRemove:'削除', photoUrlPh:'画像URL (https://…)', tPhotoFail:'画像を読み込めませんでした', errMap:'カカオマップを読み込めませんでした。ドメイン登録や地図の利用設定を確認してください。リストと同期はそのまま使えます。',
   }
 };
 const LANGS = ['ko', 'ja'];
