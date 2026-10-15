@@ -17,7 +17,7 @@ const MapView = (() => {
   function clear() { overlays.forEach(o => o.setMap(null)); lines.forEach(l => l.setMap(null)); overlays = []; lines = []; cancelAnimationFrame(anim); }
   function el(html, onClick) { const d = document.createElement('div'); d.innerHTML = html; const n = d.firstElementChild;
     if (onClick) { n.style.cursor = 'pointer'; n.addEventListener('click', e => { e.stopPropagation(); onClick(); }); } return n; }
-  function draw({ places, stops, onPin }) {
+  function draw({ places, stops, labels = [], onPin }) {
     clear(); const inTrip = new Set(stops.map(p => p.id));
     places.filter(p => !inTrip.has(p.id)).forEach(p => {
       const o = new kakao.maps.CustomOverlay({ position: LL(p.lat, p.lng), yAnchor: 1, zIndex: 2,
@@ -38,7 +38,7 @@ const MapView = (() => {
       anim = requestAnimationFrame(step);
     }
     stops.forEach((p, i) => { const o = new kakao.maps.CustomOverlay({ position: LL(p.lat, p.lng), zIndex: 5,
-      content: el(`<div class="stopnum" style="animation-delay:${i * 80}ms">${i + 1}</div>`, () => onPin(p)) }); o.setMap(map); overlays.push(o); });
+      content: el(`<div class="stopnum ${labels[i] ? 'wide' : ''}" style="animation-delay:${i * 80}ms">${i + 1}${labels[i] ? `<em>${labels[i]}</em>` : ''}</div>`, () => onPin(p)) }); o.setMap(map); overlays.push(o); });
   }
   function fit(points, pad) {
     if (!points.length) return; const b = new kakao.maps.LatLngBounds(); points.forEach(p => b.extend(LL(p.lat, p.lng)));

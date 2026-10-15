@@ -75,6 +75,85 @@ const SupabaseAdapter = (space) => {
   return a;
 };
 
+/* v2: one row per place / trip / category (public.items). Per-item last-write-wins,
+   so two people editing different things never clobber each other. */
+const ItemsAdapter = (space, sb, clientId, local, hooks) => {
+  let snap = new Map(), ord = new Map(), cur = null, t = null, cb = () => {};
+  const key = (k, id) => k + ':' + id;
+  const toItems = s => { const m = new Map();
+    (s.categories || []).forEach((c, i) => m.set(key('category', c.id), { kind: 'category', id: c.id, data: { ...c, order: i } }));
+    (s.trips || []).forEach((tr, i) => m.set(key('trip', tr.id), { kind: 'trip', id: tr.id, data: { ...tr, order: i } }));
+    (s.places || []).forEach(p => m.set(key('place', p.id), { kind: 'place', id: p.id, data: p }));
+    return m; };
+  const fromItems = (m, base = {}) => { m.forEach((x, k) => { if (x.data.order !== undefined) ord.set(k, x.data.order); }); const by = k => [...m.values()].filter(x => x.kind === k).map(x => x.data);
+    const strip = ({ order, ...r }) => r, byOrd = (a, b) => (a.order ?? 0) - (b.order ?? 0);
+    return { ...base, version: 3, places: by('place'), trips: by("trip").sort(byOrd).map(strip), categories: by("category").sort(byOrd).map(strip) }; };
+  const applyRow = (m, r) => { const k = key(r.kind, r.id);
+    if (r.deleted) { m.delete(k); snap.delete(k); } else { m.set(k, { kind: r.kind, id: r.id, data: r.data }); snap.set(k, JSON.stringify(r.data)); } };
+  async function push() {
+    if (!cur) return; const m = toItems(cur), rows = [], now = new Date().toISOString();
+    m.forEach((it, k) => { const j = JSON.stringify(it.data); if (snap.get(k) !== j) rows.push({ space_id: space, kind: it.kind, id: it.id, data: it.data, deleted: false, client_id: clientId, updated_at: now, _j: j, _k: k }); });
+    snap.forEach((j, k) => { if (!m.has(k)) { const [kind, ...rest] = k.split(':'); rows.push({ space_id: space, kind, id: rest.join(':'), data: JSON.parse(j), deleted: true, client_id: clientId, updated_at: now, _k: k }); } });
+    if (!rows.length) return;
+    const { error } = await sb.from('items').upsert(rows.map(({ _j, _k, ...r }) => r), { onConflict: 'space_id,kind,id' });
+    if (error) return hooks.setStatus('local', 'errSync');
+    rows.forEach(r => r.deleted ? snap.delete(r._k) : snap.set(r._k, r._j));
+  }
+  async function fetchAll() { const { data, error } = await sb.from('items').select('kind,id,data,deleted,client_id,updated_at').eq('space_id', space); if (error) throw error; return data; }
+  return {
+    mode: 'v2',
+    async load(cached) {
+      const rows = await fetchAll();
+      if (!rows.length) {   // first time on v2: migrate the old single-row space if present
+        const { data } = await sb.from('spaces').select('data').eq('id', space).maybeSingle();
+        cur = data?.data || cached || null; if (cur) { await push(); hooks.notice?.('noticeMigrated'); }
+        return cur;
+      }
+      const m = new Map(); rows.forEach(r => applyRow(m, r)); cur = fromItems(m); await local.save(cur); return cur;
+    },
+    save(state) { cur = state; clearTimeout(t); t = setTimeout(push, 300); },
+    subscribe(fn) { cb = fn;
+      const onRow = r => { if (!r || r.client_id === clientId || !cur) return; const m = toItems(cur);
+        m.forEach((x, k) => { if (ord.has(k) && x.data.order !== undefined) x.data = { ...x.data, order: ord.get(k) }; });  // keep server order for untouched rows
+        applyRow(m, r);
+        cur = fromItems(m, cur); local.save(cur); cb(cur, true); };
+      sb.channel('items:' + space)
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'items', filter: `space_id=eq.${space}` }, p => onRow(p.new))
+        .subscribe(async s => {
+          if (s === 'SUBSCRIBED') { try { (await fetchAll()).forEach(r => { if (r.client_id !== clientId && snap.get(key(r.kind, r.id)) !== (r.deleted ? undefined : JSON.stringify(r.data))) onRow(r); }); } catch {}
+            hooks.setStatus('online'); }
+          else if (s === 'CHANNEL_ERROR' || s === 'TIMED_OUT') hooks.setStatus('local', 'errRealtime'); });
+    }
+  };
+};
+
+/* Picks v2 (items) when the table exists, otherwise v1 (single jsonb row) + a notice banner. */
+const SyncAdapter = (space) => {
+  const local = LocalAdapter(space);
+  const clientId = localStorage.getItem('najune-client') || (() => { const c = Math.random().toString(36).slice(2); localStorage.setItem('najune-client', c); return c; })();
+  let inner = null, onStatus = () => {}, onNotice = () => {};
+  const a = {
+    status: 'connecting', mode: null, space,
+    onStatus: f => { onStatus = f; }, onNotice: f => { onNotice = f; },
+    setStatus(s, msg) { a.status = s; onStatus(s, msg); },
+    async load() {
+      const cached = await local.load();
+      if (!window.supabase) { a.setStatus('local', 'errNoLib'); return cached; }
+      const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, { auth: { persistSession: false } });
+      const probe = await sb.from('items').select('id').eq('space_id', space).limit(1);
+      if (!probe.error) {
+        inner = ItemsAdapter(space, sb, clientId, local, { setStatus: a.setStatus, notice: k => onNotice(k) }); a.mode = 'v2';
+        try { return await inner.load(cached); } catch { inner = null; a.setStatus('local', 'errOffline'); return cached; }
+      }
+      if (probe.error.code === 'PGRST205' || probe.error.code === '42P01') { a.mode = 'v1'; inner = SupabaseAdapter(space); inner.onStatus(a.setStatus); onNotice('noticeNoV2'); return inner.load(); }
+      a.setStatus('local', 'errOffline'); return cached;
+    },
+    async save(state) { await local.save(state); inner?.save(state); },
+    subscribe(cb) { local.subscribe(cb); inner?.subscribe(cb); }
+  };
+  return a;
+};
+
 const DEFAULT_CATS = [
   { id:'food',    key:'catFood',    emoji:'🍜', color:'#F7C6D0' },
   { id:'cafe',    key:'catCafe',    emoji:'☕️', color:'#F8E7A8' },
@@ -96,7 +175,7 @@ function migrate(s) {
 
 const Store = (() => {
   let adapter, state = empty(), listeners = [];
-  function empty() { return { version: 2, places: [], trips: [], categories: DEFAULT_CATS.map(c => ({ ...c })), activeTripId: null }; }
+  function empty() { return { version: 3, places: [], trips: [], categories: DEFAULT_CATS.map(c => ({ ...c })), activeTripId: null }; }
   const uid = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
   const emit = (remote) => listeners.forEach(f => f(state, remote));
   const commit = () => { adapter.save(state); emit(); };
@@ -115,8 +194,8 @@ const Store = (() => {
     setMe(n) { localStorage.setItem('najune-me', n); emit(); },   // per-device, not synced
     addPlace(p) { const place = { id: uid(), status: 'wish', heart: false, cost: 0, memo: '', category: 'etc', addedBy: this.me, createdAt: Date.now(), ...p }; state.places.push(place); commit(); return place; },
     updatePlace(id, patch) { Object.assign(state.places.find(p => p.id === id) || {}, patch, { updatedAt: Date.now() }); commit(); },
-    removePlace(id) { state.places = state.places.filter(p => p.id !== id); state.trips.forEach(t => t.stops = t.stops.filter(s => s !== id)); commit(); },
-    addTrip(name) { const t = { id: uid(), name, stops: [] }; state.trips.push(t); this.setActiveTrip(t.id, true); commit(); return t; },
+    removePlace(id) { state.places = state.places.filter(p => p.id !== id); state.trips.forEach(t => { if (t.stops.includes(id)) { t.stops = t.stops.filter(s => s !== id); if (t.meta) delete t.meta[id]; } }); commit(); },
+    addTrip(name, date) { const t = { id: uid(), name, stops: [], meta: {}, ...(date ? { date } : {}) }; state.trips.push(t); this.setActiveTrip(t.id, true); commit(); return t; },
     setActiveTrip(id, quiet) { state.activeTripId = id; localStorage.setItem('najune-active-trip', id); if (!quiet) emit(); },  // per-device view
     activeTrip() { return state.trips.find(t => t.id === state.activeTripId) || null; },
     addStop(pid) { let tr = this.activeTrip() || this.addTrip(t('firstTrip')); if (!tr.stops.includes(pid)) tr.stops.push(pid);
@@ -140,6 +219,12 @@ const Store = (() => {
     moveCategory(id, dir) { const a = state.categories, i = a.findIndex(c => c.id === id), j = i + dir; if (i < 0 || j < 0 || j >= a.length) return; [a[i], a[j]] = [a[j], a[i]]; commit(); },
     removeCategory(id) { if (id === 'etc') return; state.categories = state.categories.filter(c => c.id !== id);
       state.places.forEach(p => { if (p.category === id) { p.category = 'etc'; p.updatedAt = Date.now(); } }); commit(); },
+    updateTrip(id, patch) { const tr = state.trips.find(x => x.id === id); if (!tr) return; Object.assign(tr, patch); if (!tr.date) delete tr.date; commit(); },
+    removeTrip(id) { state.trips = state.trips.filter(x => x.id !== id); fixActive(); this.setActiveTrip(state.activeTripId, true); commit(); },
+    setStopMeta(pid, patch) { const tr = this.activeTrip(); if (!tr) return; tr.meta = tr.meta || {}; const m = { ...(tr.meta[pid] || {}), ...patch };
+      Object.keys(m).forEach(k => { if (!m[k]) delete m[k]; }); if (Object.keys(m).length) tr.meta[pid] = m; else delete tr.meta[pid]; commit(); },
+    sortStopsByTime() { const tr = this.activeTrip(); if (!tr) return; const tm = id => tr.meta?.[id]?.time || '99:99';
+      tr.stops = tr.stops.map((id, i) => [id, i]).sort((a, b) => tm(a[0]).localeCompare(tm(b[0])) || a[1] - b[1]).map(x => x[0]); commit(); },
     reset() { state = empty(); commit(); }
   };
 })();

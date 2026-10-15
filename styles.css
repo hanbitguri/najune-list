@@ -137,6 +137,34 @@ a.iconbtn{display:grid;place-items:center;text-decoration:none}
 .sw{width:24px;height:24px;border-radius:12px;border:2px solid #fff;box-shadow:0 0 0 1px var(--line);cursor:pointer;transition:transform .3s var(--spring)}
 .sw.on{transform:scale(1.2);box-shadow:0 0 0 2px var(--ink)}
 .chip.manage{background:var(--b2)}
+/* trip picker */
+.picker{flex:1;min-width:0;height:44px;border:0;border-radius:var(--r2);background:var(--w);box-shadow:var(--sh1);display:flex;align-items:center;justify-content:space-between;padding:0 12px 0 16px;font:inherit;color:var(--ink);cursor:pointer;text-align:left;transition:transform .3s var(--spring),box-shadow .3s}
+.picker:active{transform:scale(.98)}
+.picker span{display:flex;flex-direction:column;min-width:0}.picker b{font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.picker small{font-size:11px;color:var(--sub);margin-top:2px}.picker i{font-style:normal;color:var(--sub);font-size:16px}
+.picker-card{padding-bottom:calc(16px + env(safe-area-inset-bottom))}
+.picklist{list-style:none;margin:12px 0 0;padding:0;display:flex;flex-direction:column;gap:4px;max-height:60vh;overflow:auto}
+.picklist button{width:100%;display:flex;align-items:center;justify-content:space-between;gap:12px;border:0;background:var(--w);border-radius:var(--r2);padding:12px 16px;font:inherit;color:var(--ink);text-align:left;cursor:pointer;animation:rise .35s var(--spring) both;transition:background .25s,transform .3s var(--spring)}
+.picklist button:active{transform:scale(.98)}
+.picklist button.on{background:var(--lav)}
+.picklist b{display:block;font-size:15px}.picklist small{display:block;font-size:12px;color:var(--sub);margin-top:2px}
+.picklist i{font-style:normal;font-weight:700;width:16px}
+/* travel mode + totals */
+.row.between{justify-content:space-between;flex-wrap:wrap;gap:8px}.row.tight{gap:4px}
+.modeseg{position:relative;display:flex;background:var(--b2);border-radius:16px;padding:4px;--i:0}
+.modeseg button{position:relative;z-index:1;border:0;background:none;height:28px;padding:0 12px;font:600 13px var(--font);color:var(--sub);cursor:pointer;transition:color .3s;min-width:72px}
+.modeseg button.on{color:var(--ink)}
+.modeseg .ink{position:absolute;top:4px;left:4px;width:calc(50% - 4px);height:28px;border-radius:14px;background:var(--mint);box-shadow:var(--sh1);transform:translateX(calc(var(--i) * 100%));transition:transform .45s var(--spring)}
+.totals{margin:8px 0 0;font-size:13px;color:var(--ink);font-weight:600}
+.totals em,.leg em{font-style:normal;font-weight:500;color:var(--sub);font-size:11px;margin-left:2px}
+.leg{transition:color .3s}.leg.fresh{animation:fade .5s var(--ease)}
+.trip-meta .chip{height:28px;font-size:12px;box-shadow:none;background:var(--b2)}.trip-meta .chip.on{background:var(--butter);color:var(--ink);transform:none}
+.timechip{flex:none;border:0;height:28px;padding:0 8px;border-radius:14px;background:var(--b1);font:600 12px var(--font);color:var(--sub);cursor:pointer;transition:transform .3s var(--spring),background .3s}
+.timechip.set{background:var(--butter);color:var(--ink)}.timechip:active{transform:scale(.9)}
+.stops .iconbtn{width:32px;height:32px;font-size:14px}
+.stopnum.wide{width:auto;padding:0 8px 0 9px;gap:4px;display:flex;align-items:center}
+.stopnum em{font-style:normal;font-weight:600;font-size:11px;opacity:.9}
+.notice{background:var(--lav);top:calc(72px + env(safe-area-inset-top))}
 /* desktop */
 @media (min-width:900px){
   .topbar{left:396px;right:auto;width:520px;top:16px}

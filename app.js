@@ -35,24 +35,31 @@ function render() {
     </li>`).join('') : `<p class="hint">${t('emptyPlaces')}</p>`;
 
   // trips
-  $('#tripSelect').innerHTML = s.trips.length ? s.trips.map(t => `<option value="${t.id}" ${t.id===s.activeTripId?'selected':''}>${esc(t.name)}</option>`).join('') : `<option>${t('noTrips')}</option>`;
+  $('#tripPick').innerHTML = trip ? `<span><b>${esc(trip.name)}</b>${trip.date ? `<small>${fmtDate(trip.date)}</small>` : ''}</span><i>⌄</i>` : `<span><b>${t('noTrips')}</b></span><i>⌄</i>`;
+  $('#editTrip').style.display = trip ? '' : 'none';
   const stops = trip ? trip.stops.map(id => s.places.find(p => p.id === id)).filter(Boolean) : [];
-  let total = 0, cost = 0, html = '';
+  const meta = trip?.meta || {}; let cost = 0, html = '';
   stops.forEach((p, i) => {
-    if (i) { const d = dist(stops[i-1], p); total += d; html += `<li class="leg">${t('leg',{d:fmtKm(d)})}</li>`; }
-    cost += +p.cost || 0;
+    if (i) html += `<li class="leg" data-leg="${i}" data-k="${stops[i-1].id}>${p.id}">${legText(stops[i-1], p).html}</li>`;
+    cost += +p.cost || 0; const m = meta[p.id] || {};
     html += `<li class="item" data-id="${p.id}" data-idx="${i}" style="animation-delay:${i*40}ms">
-      <div class="num">${i+1}</div><div class="body" data-act="fly"><h4>${cat(p.category).emoji} ${esc(p.name)}</h4><p>${esc(won(p.cost) || p.memo || '')}</p></div>
+      <div class="num">${i+1}</div><div class="body" data-act="fly"><h4>${cat(p.category).emoji} ${esc(p.name)}</h4><p>${esc(m.note || won(p.cost) || p.memo || '')}</p></div>
+      <button class="timechip ${m.time ? 'set' : ''}" data-act="meta" aria-label="${t('time')}">${m.time ? esc(m.time) : '＋ ' + t('time')}</button>
       <a class="iconbtn" href="${kakaoLink(p)}" target="_blank" rel="noopener" aria-label="${t('openKakao')}">🧭</a>
       <button class="iconbtn" data-act="unstop" aria-label="${t('removeStop')}">✕</button><span class="handle" aria-label="${t('reorder')}">☰</span></li>`;
   });
   $('#stopList').innerHTML = html;
-  $('#tripMeta').textContent = trip ? t('tripMeta',{n:stops.length,d:fmtKm(total)}) + (cost ? t('tripCost',{c:won(cost)}) : '') : t('tripEmpty');
+  const nTimes = stops.filter(p => meta[p.id]?.time).length;
+  $('#tripMeta').innerHTML = trip ? `<div class="row between">
+      <div class="modeseg" style="--i:${travelMode === 'car' ? 1 : 0}"><span class="ink"></span><button data-mode="walk" class="${travelMode==='walk'?'on':''}">${t('modeWalk')}</button><button data-mode="car" class="${travelMode==='car'?'on':''}">${t('modeCar')}</button></div>
+      <div class="row tight">${nTimes >= 2 ? `<button class="chip" id="sortTime">${t('sortByTime')}</button>` : ''}<button class="chip ${mapTimes ? 'on' : ''}" id="mapTimes">${t('mapTimes')}</button></div></div>
+    <p id="tripTotals" class="totals"></p>` : t('tripEmpty');
+  tripCost = cost; updateTotals(stops); fillLegs(stops);
   $('#me').value = Store.me;
 
   // map
   s.places.forEach(p => { Object.defineProperty(p, '_color', { value: cat(p.category).color, configurable: true }); Object.defineProperty(p, '_emoji', { value: cat(p.category).emoji, configurable: true }); });
-  MapView.draw({ places: s.places, stops, onPin: p => { MapView.flyTo(p.lat, p.lng); openForm(p); } });
+  MapView.draw({ places: s.places, stops, labels: stops.map(p => mapTimes ? meta[p.id]?.time || '' : ''), onPin: p => { MapView.flyTo(p.lat, p.lng); openForm(p); } });
   if (!fitted && s.places.length) { fitted = true; const mob = innerWidth < 900;
     MapView.fit(stops.length > 1 ? stops : s.places, mob ? [80, 24, 340, 24] : [96, 48, 48, 420]); }
 }
@@ -70,17 +77,73 @@ $('#placeList').onclick = e => {
 $('#stopList').onclick = e => {
   const li = e.target.closest('.item'); if (!li) return; const act = e.target.closest('[data-act]')?.dataset.act;
   const p = Store.get().places.find(x => x.id === li.dataset.id);
-  if (act === 'unstop') Store.removeStop(p.id); else if (act === 'fly') MapView.flyTo(p.lat, p.lng);
+  if (act === 'unstop') Store.removeStop(p.id); else if (act === 'fly') MapView.flyTo(p.lat, p.lng); else if (act === 'meta') openStop(p, +li.dataset.idx);
 };
-$('#tripSelect').onchange = e => Store.setActiveTrip(e.target.value);
-$('#newTrip').onclick = () => { const f = $('#tripForm'), n = Store.get().trips.length + 1; f.name.value = '';
-  f.name.placeholder = t('presetDay',{n});
+// travel time
+let travelMode = localStorage.getItem('najune-mode') || 'walk', mapTimes = localStorage.getItem('najune-maptime') !== '0', tripCost = 0, legRes = [];
+const fmtDate = iso => { try { return new Intl.DateTimeFormat(LANG, { month: 'short', day: 'numeric', weekday: 'short' }).format(new Date(iso + 'T00:00')); } catch { return iso; } };
+function legText(a, b) { const km = dist(a, b);
+  let r = travelMode === 'walk' ? Directions.walk(km) : (Directions.cachedCar(a, b) || Directions.carEstimate(km));
+  return { r, html: `${travelMode === 'walk' ? '🚶' : '🚗'} ${fmtDur(r.sec)} · ${fmtKm(r.km)}${r.est ? `<em>${t('legEst')}</em>` : ''}` }; }
+function updateTotals(stops) { const el = $('#tripTotals'); if (!el) return;
+  let sec = 0, km = 0, est = false; for (let i = 1; i < stops.length; i++) { const { r } = legText(stops[i-1], stops[i]); sec += r.sec; km += r.km; est ||= r.est; }
+  el.innerHTML = t('tripTotal', { n: stops.length, time: stops.length > 1 ? fmtDur(sec) : '–', d: fmtKm(km) }) + (est && stops.length > 1 ? `<em>${t('legEst')}</em>` : '') + (tripCost ? t('tripCost', { c: won(tripCost) }) : ''); }
+let legSeq = 0, keyWarned = false;
+const currentStops = () => { const tr = Store.activeTrip(), s = Store.get(); return tr ? tr.stops.map(id => s.places.find(p => p.id === id)).filter(Boolean) : []; };
+async function fillLegs(stops) { if (travelMode !== 'car' || stops.length < 2) return;
+  await Promise.all(stops.slice(1).map(async (b, k) => { const a = stops[k], res = await Directions.car(a, b);
+    if (res?.error === 'auth' && !keyWarned) { keyWarned = true; toast(t('tKeyBad')); }
+    if (!res || res.error || travelMode !== 'car') return;
+    const el = document.querySelector(`#stopList .leg[data-k="${a.id}>${b.id}"]`); if (el) { el.innerHTML = legText(a, b).html; el.classList.add('fresh'); }
+    updateTotals(currentStops()); })); }
+$('#tripMeta').addEventListener('click', e => { const m = e.target.closest('[data-mode]');
+  if (m) { travelMode = m.dataset.mode; localStorage.setItem('najune-mode', travelMode); return render(); }
+  if (e.target.closest('#sortTime')) { Store.sortStopsByTime(); toast(t('tSorted')); }
+  if (e.target.closest('#mapTimes')) { mapTimes = !mapTimes; localStorage.setItem('najune-maptime', mapTimes ? '1' : '0'); render(); } });
+
+// custom picker (bottom sheet on mobile, popover card on desktop)
+function openPicker({ title, items, value, onPick }) {
+  $('#pickTitle').textContent = title;
+  $('#pickList').innerHTML = items.map((it, i) => `<li><button type="button" data-v="${esc(it.value)}" class="${it.value === value ? 'on' : ''}" style="animation-delay:${i*25}ms">
+    <span><b>${esc(it.label)}</b>${it.sub ? `<small>${esc(it.sub)}</small>` : ''}</span><i>${it.value === value ? '✓' : ''}</i></button></li>`).join('');
+  $('#pickList').onclick = e => { const b = e.target.closest('button[data-v]'); if (!b) return;
+    $('#pickList').querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b)); setTimeout(() => { closePicker(); onPick(b.dataset.v); }, 160); };
+  $('#pickModal').classList.add('show');
+}
+const closePicker = () => $('#pickModal').classList.remove('show');
+$('#pickModal').onclick = e => { if (e.target.id === 'pickModal') closePicker(); };
+$('#tripPick').onclick = () => { const s = Store.get(); if (!s.trips.length) return $('#newTrip').click();
+  const items = [...s.trips].sort((a, b) => (a.date || '9999').localeCompare(b.date || '9999'))
+    .map(tr => ({ value: tr.id, label: tr.name, sub: [tr.date ? fmtDate(tr.date) : t('noDate'), t('nPlaces', { n: tr.stops.length })].join(' · ') }));
+  openPicker({ title: t('pickTrip'), items, value: s.activeTripId, onPick: id => { fitted = false; Store.setActiveTrip(id); } }); };
+
+// trip sheet (create + edit)
+let editingTrip = null;
+function openTrip(tr) { editingTrip = tr; const f = $('#tripForm'), n = Store.get().trips.length + 1;
+  f.name.value = tr ? tr.name : ''; f.date.value = tr?.date || ''; f.name.placeholder = t('presetDay', { n });
+  $('#tripTitle').textContent = tr ? t('editTrip') : t('newTripTitle'); $('#tripSubmit').textContent = tr ? t('save') : t('create');
+  $('#delTrip').style.display = tr ? '' : 'none'; $('#tripPresets').style.display = tr ? 'none' : '';
   $('#tripPresets').innerHTML = [t('presetDay',{n}), t('presetWeekend'), t('presetFood'), t('presetCafe')].map(x => `<button type="button">${x}</button>`).join('');
-  $('#tripModal').classList.add('show'); setTimeout(() => f.name.focus(), 350); };
+  $('#tripModal').classList.add('show'); setTimeout(() => f.name.focus(), 350); }
+$('#newTrip').onclick = () => openTrip(null);
+$('#editTrip').onclick = () => openTrip(Store.activeTrip());
 $('#tripPresets').onclick = e => { if (e.target.tagName === 'BUTTON') $('#tripForm').name.value = e.target.textContent; };
 const closeTrip = () => { $('#tripModal').classList.remove('show'); $('#tripForm').name.blur(); };
 $('#cancelTrip').onclick = closeTrip; $('#tripModal').onclick = e => { if (e.target.id === 'tripModal') closeTrip(); };
-$('#tripForm').onsubmit = e => { e.preventDefault(); const v = e.target.name.value.trim() || e.target.name.placeholder; Store.addTrip(v); closeTrip(); toast(t('tTripMade',{name:v})); };
+$('#delTrip').onclick = () => { if (editingTrip && confirm(t('cDeleteTrip', { name: editingTrip.name }))) { Store.removeTrip(editingTrip.id); closeTrip(); } };
+$('#tripForm').onsubmit = e => { e.preventDefault(); const f = e.target, v = f.name.value.trim() || f.name.placeholder, date = f.date.value;
+  if (editingTrip) { Store.updateTrip(editingTrip.id, { name: v, date }); closeTrip(); }
+  else { Store.addTrip(v, date); closeTrip(); toast(t('tTripMade',{name:v})); } };
+
+// stop sheet (time + note)
+let editingStop = null;
+function openStop(p, idx) { editingStop = p; const m = Store.activeTrip()?.meta?.[p.id] || {}, f = $('#stopForm');
+  $('#stopTitle').textContent = `${idx + 1}. ${p.name}`; f.time.value = m.time || ''; f.note.value = m.note || '';
+  $('#stopModal').classList.add('show'); }
+const closeStop = () => $('#stopModal').classList.remove('show');
+$('#cancelStop').onclick = closeStop; $('#stopModal').onclick = e => { if (e.target.id === 'stopModal') closeStop(); };
+$('#clearTime').onclick = () => { $('#stopForm').time.value = ''; };
+$('#stopForm').onsubmit = e => { e.preventDefault(); const f = e.target; Store.setStopMeta(editingStop.id, { time: f.time.value, note: f.note.value.trim() }); closeStop(); };
 $('#me').onchange = e => Store.setMe(e.target.value.trim());
 
 // tabs
@@ -224,7 +287,7 @@ function loadSample() {
     ['을지로 노가리골목','food',37.5660,126.9918,30000,'','done',false],
     ['롯데호텔 서울','stay',37.5651,126.9810,250000,'','wish',false],
   ].map(([name,category,lat,lng,cost,memo,status,heart],i)=>({id:'s'+i,name,category,lat,lng,cost,memo,status,heart,addedBy:i%2?'여자친구':'한빛',createdAt:Date.now()-i*1000}));
-  Store.replace({ places: P, trips: [{ id:'t1', name:'서울 데이트 1일차', stops:['s0','s2','s1','s3'] }, { id:'t2', name:'성수 데이트', stops:['s4','s5'] }], activeTripId:'t1' });
+  Store.replace({ places: P, trips: [{ id:'t1', name:'서울 데이트 1일차', date:'2026-10-24', stops:['s0','s2','s1','s3'], meta:{ s0:{time:'10:30',note:'한복 대여 먼저'}, s2:{time:'13:00'}, s1:{time:'15:30',note:'빈대떡!'}, s3:{time:'19:00',note:'야경'} } }, { id:'t2', name:'성수 데이트', date:'2026-10-25', stops:['s4','s5'], meta:{} }], activeTripId:'t1' });
   fitted = false; render();
 }
 
@@ -233,21 +296,26 @@ let lastSync = ['connecting'];
 function syncUI(s, msg) {
   lastSync = [s, msg];
   $('#syncDot').className = 'dot ' + s;
+  if (adapter.mode === 'v2' && !$('#noticeBanner').dataset.k) $('#syncMode').textContent = t('syncV2');
   $('#syncText').textContent = s === 'online' ? t('syncOnline') : s === 'connecting' ? t('syncConnecting') : (msg ? t(msg) : t('syncLocal'));
   const b = $('#banner'); if (s === 'local' && msg) { b.textContent = '⚠️ ' + t(msg); b.classList.add('show'); } else b.classList.remove('show');
 }
-const adapter = SupabaseAdapter(Space.get());
+const adapter = SyncAdapter(Space.get());
 adapter.onStatus(syncUI); syncUI('connecting');
 $('#spaceCode').textContent = Space.get();
 $('#joinSpace').onclick = () => { if (!Space.set($('#spaceInput').value)) toast(t('tShort')); };
 $('#newSpace').onclick = () => { if (confirm(t('cNewSpace'))) Space.set('najune-' + Math.random().toString(36).slice(2, 8)); };
 $('#copyLink').onclick = async () => { const l = Space.link();
   try { if (navigator.share) await navigator.share({ title: t('appName'), url: l }); else { await navigator.clipboard.writeText(l); toast(t('tCopied')); } } catch {} };
+$('#restKey').value = Directions.key ? '••••••••' + Directions.key.slice(-4) : '';
+$('#saveKey').onclick = () => { const v = $('#restKey').value.trim(); if (v.startsWith('••')) return; Directions.setKey(v); keyWarned = false; toast(v ? t('tKeySaved') : t('tKeyCleared')); render(); };
+adapter.onNotice(k => { $('#syncMode').textContent = t(k); const b = $('#noticeBanner'); b.textContent = 'ℹ️ ' + t(k); b.dataset.k = k; b.classList.add('show'); setTimeout(() => b.classList.remove('show'), 10000); });
+$('#noticeBanner').onclick = () => $('#noticeBanner').classList.remove('show');
 $('#banner').onclick = () => $('#banner').classList.remove('show');
 Store.on((s, remote) => { if (remote) toast(t('tRemote')); });
 
 document.querySelectorAll('.lang button').forEach(b => b.onclick = () => setLang(b.dataset.lang));
-document.addEventListener('langchange', () => { render(); syncUI(...lastSync); if ($('#modal').classList.contains('show')) $('#formTitle').textContent = editing ? t('editPlace') : t('addPlace'); });
+document.addEventListener('langchange', () => { render(); { const b = $('#noticeBanner'); if (b.dataset.k) { $('#syncMode').textContent = t(b.dataset.k); b.textContent = 'ℹ️ ' + t(b.dataset.k); } } syncUI(...lastSync); if ($('#modal').classList.contains('show')) $('#formTitle').textContent = editing ? t('editPlace') : t('addPlace'); });
 applyI18n();
 MapView.init('map').catch(err => { console.warn('Kakao map failed:', err.message); const b = $('#mapBanner'); b.textContent = '🗺️ ' + t('errMap'); b.classList.add('show'); document.body.classList.add('nomap'); });
 addEventListener('resize', () => MapView.relayout());
