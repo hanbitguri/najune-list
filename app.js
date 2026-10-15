@@ -86,22 +86,15 @@ const MODE_ICON = { walk: '🚶', car: '🚗', transit: '🚇' }, CYCLE = [null,
 function legMode(a, b) { const ov = Store.activeTrip()?.legModes?.[a.id + '>' + b.id];
   return ov ? { mode: ov, auto: false } : { mode: dist(a, b) <= Store.settings.walkMaxKm ? 'walk' : 'car', auto: true }; }
 function legResult(a, b, mode) { const km = dist(a, b);
-  return mode === 'walk' ? Directions.walk(km) : mode === 'transit' ? Directions.transit(km) : (Directions.cachedCar(a, b) || Directions.carEstimate(km)); }
+  return mode === 'walk' ? Directions.walk(km) : mode === 'transit' ? Directions.transit(km) : Directions.carEstimate(km); }
 function legText(a, b) { const { mode, auto } = legMode(a, b), r = legResult(a, b, mode);
   return { r, mode, html: `<button class="legmode m-${mode} ${auto ? 'auto' : ''}" data-cycle aria-label="${t('legModeTap')}" title="${t('legModeTap')}">${MODE_ICON[mode]}${auto ? `<small>${t('mAuto')}</small>` : ''}</button>
     <span class="legtxt">${fmtDur(r.sec)} · ${fmtKm(r.km)}${r.est ? `<em>${t('legEst')}</em>` : ''}</span>${mode === 'transit' ? `<button class="legInfo" data-info aria-label="${t('transitInfoTitle')}">ⓘ</button>` : ''}` }; }
 function updateTotals(stops) { const el = $('#tripTotals'); if (!el) return;
   let sec = 0, km = 0, est = false; for (let i = 1; i < stops.length; i++) { const { r } = legText(stops[i-1], stops[i]); sec += r.sec; km += r.km; est ||= r.est; }
   el.innerHTML = t('tripTotal', { n: stops.length, time: stops.length > 1 ? fmtDur(sec) : '–', d: fmtKm(km) }) + (est && stops.length > 1 ? `<em>${t('legEst')}</em>` : '') + (tripCost ? t('tripCost', { c: won(tripCost) }) : ''); }
-let keyWarned = false;
 const currentStops = () => { const tr = Store.activeTrip(), s = Store.get(); return tr ? tr.stops.map(id => s.places.find(p => p.id === id)).filter(Boolean) : []; };
-async function fillLegs(stops) { if (stops.length < 2) return;
-  await Promise.all(stops.slice(1).map(async (b, k) => { const a = stops[k]; if (legMode(a, b).mode !== 'car' || Directions.cachedCar(a, b)) return;
-    const res = await Directions.car(a, b);
-    if (res?.error === 'auth' && !keyWarned) { keyWarned = true; toast(t('tKeyBad')); }
-    if (!res || res.error || legMode(a, b).mode !== 'car') return;
-    const el = document.querySelector(`#stopList .leg[data-k="${a.id}>${b.id}"]`); if (el) { el.innerHTML = legText(a, b).html; el.classList.add('fresh'); }
-    updateTotals(currentStops()); })); }
+function fillLegs() {}  // car times are always estimates now (no Kakao Mobility calls)
 // leg row: tap icon → cycle 자동 → 🚶 → 🚗 → 🚇 → 자동 ; ⓘ → transit disclosure sheet
 $('#stopList').addEventListener('click', e => { const leg = e.target.closest('.leg'); if (!leg) return; e.stopPropagation();
   const [aId, bId] = leg.dataset.k.split('>'), s = Store.get(), A = s.places.find(p => p.id === aId), B = s.places.find(p => p.id === bId); if (!A || !B) return;
@@ -224,17 +217,29 @@ document.querySelectorAll('.tab').forEach((b, i) => b.onclick = () => {
   list.addEventListener('pointerup', end); list.addEventListener('pointercancel', end);
 })();
 
-// bottom sheet drag (mobile)
+// bottom sheet: whole header (handle + tab bar) is a grab zone. Tap → next snap; drag → follow + velocity snap.
 (() => {
-  const sheet = $('#sheet'), grab = $('#grab'); let y0 = null, base = 0;
-  const states = ['min', '', 'full'];
+  const sheet = $('#sheet'), tabs = $('.tabs'), STATES = ['min', '', 'full'];
   const cur = () => sheet.classList.contains('full') ? 2 : sheet.classList.contains('min') ? 0 : 1;
-  const set = i => { sheet.classList.remove('min','full'); if (states[i]) sheet.classList.add(states[i]); };
-  grab.addEventListener('pointerdown', e => { y0 = e.clientY; base = cur(); sheet.classList.add('dragging'); grab.setPointerCapture(e.pointerId); });
-  grab.addEventListener('pointermove', e => { if (y0 === null) return; const m = new DOMMatrix(getComputedStyle(sheet).transform);
-    sheet.style.transform = `translateY(${Math.max(0, m.m42 + e.clientY - y0)}px)`; y0 = e.clientY; base = base; grab._dy = (grab._dy||0) + e.movementY; });
-  grab.addEventListener('pointerup', () => { sheet.classList.remove('dragging'); sheet.style.transform = ''; const dy = grab._dy || 0; grab._dy = 0; y0 = null;
-    if (Math.abs(dy) < 6) set((base + 1) % 3); else set(Math.max(0, Math.min(2, base + (dy < 0 ? 1 : -1)))); });
+  const set = i => { sheet.classList.remove('min', 'full'); if (STATES[i]) sheet.classList.add(STATES[i]); };
+  const snaps = () => { const H = sheet.offsetHeight; return [H - 112, Math.max(0, H - 300), 0]; };   // translateY per state (matches CSS)
+  let g = null, swallowClick = false;
+  const down = e => { if (innerWidth >= 900 || g) return;
+    g = { id: e.pointerId, y0: e.clientY, y: e.clientY, t: performance.now(), base: snaps()[cur()], v: 0, dragging: false, onTab: !!e.target.closest('.tab'), el: e.currentTarget }; };
+  const move = e => { if (!g || e.pointerId !== g.id) return; const dy = e.clientY - g.y0;
+    if (!g.dragging && Math.abs(dy) > 8) { g.dragging = true; sheet.classList.add('dragging'); try { g.el.setPointerCapture(g.id); } catch {} }
+    if (!g.dragging) return; e.preventDefault();
+    const now = performance.now(), dt = Math.max(1, now - g.t); g.v = 0.6 * g.v + 0.4 * ((e.clientY - g.y) / dt); g.y = e.clientY; g.t = now;  // px/ms, smoothed
+    const max = snaps()[0], y = g.base + dy; sheet.style.transform = `translateY(${y < 0 ? y / 4 : y > max ? max + (y - max) / 4 : y}px)`; };   // rubber-band at the ends
+  const up = e => { if (!g || e.pointerId !== g.id) return; const s = g; g = null;
+    if (!s.dragging) { if (!s.onTab) set((cur() + 1) % 3); return; }      // tap: a tab keeps its own click; anywhere else cycles the snap
+    swallowClick = true; setTimeout(() => swallowClick = false, 60);
+    const sn = snaps(), c = cur(), proj = s.base + (s.y - s.y0) + s.v * 180;
+    let best = 0; sn.forEach((p, i) => { if (Math.abs(p - proj) < Math.abs(sn[best] - proj)) best = i; });
+    if (Math.abs(s.v) > 0.5 && best === c) best = Math.max(0, Math.min(2, c + (s.v < 0 ? 1 : -1)));   // a flick always moves one step
+    sheet.classList.remove('dragging'); sheet.style.transform = ''; set(best); };
+  [$('#grab'), tabs].forEach(z => { z.addEventListener('pointerdown', down); z.addEventListener('pointermove', move, { passive: false }); z.addEventListener('pointerup', up); z.addEventListener('pointercancel', up); });
+  tabs.addEventListener('click', e => { if (swallowClick) { e.stopPropagation(); e.preventDefault(); } }, true);   // a drag that began on a tab is not a tab tap
 })();
 
 // search (Kakao Places, biased to map center)
@@ -320,9 +325,9 @@ $('#placeForm').onsubmit = e => { e.preventDefault(); const f = e.target;
 // share
 $('#exportBtn').onclick = () => { const b = new Blob([JSON.stringify(Store.get(), null, 2)], { type: 'application/json' });
   const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(b), download: `najune-list-${new Date().toISOString().slice(0,10)}.json` }); a.click(); toast(t('tExported')); };
-$('#importFile').onchange = async e => { const f = e.target.files[0]; if (!f) return; try { Store.merge(JSON.parse(await f.text())); fitted = false; render(); toast(t('tMerged')); } catch { toast(t('tBadFile')); } e.target.value = ''; };
-$('#resetBtn').onclick = () => confirm(t('cReset')) && Store.reset();
-$('#sampleBtn').onclick = () => { loadSample(); toast(t('tSample')); };
+if ($('#importFile')) $('#importFile').onchange = async e => { const f = e.target.files[0]; if (!f) return; try { Store.merge(JSON.parse(await f.text())); fitted = false; render(); toast(t('tMerged')); } catch { toast(t('tBadFile')); } e.target.value = ''; };
+if ($('#resetBtn')) $('#resetBtn').onclick = () => confirm(t('cReset')) && Store.reset();
+if ($('#sampleBtn')) $('#sampleBtn').onclick = () => { loadSample(); toast(t('tSample')); };
 
 function loadSample() {
   const P = [
@@ -355,8 +360,7 @@ $('#joinSpace').onclick = () => { if (!Space.set($('#spaceInput').value)) toast(
 $('#newSpace').onclick = () => { if (confirm(t('cNewSpace'))) Space.set('najune-' + Math.random().toString(36).slice(2, 8)); };
 $('#copyLink').onclick = async () => { const l = Space.link();
   try { if (navigator.share) await navigator.share({ title: t('appName'), url: l }); else { await navigator.clipboard.writeText(l); toast(t('tCopied')); } } catch {} };
-$('#restKey').value = Directions.key ? '••••••••' + Directions.key.slice(-4) : '';
-$('#saveKey').onclick = () => { const v = $('#restKey').value.trim(); if (v.startsWith('••')) return; Directions.setKey(v); keyWarned = false; toast(v ? t('tKeySaved') : t('tKeyCleared')); render(); };
+localStorage.removeItem('najune-kakao-rest'); localStorage.removeItem('najune-dir-cache-v1');  // REST key feature removed: clear anything stored
 adapter.onNotice(k => { $('#syncMode').textContent = t(k); const b = $('#noticeBanner'); b.textContent = 'ℹ️ ' + t(k); b.dataset.k = k; b.classList.add('show'); if (k !== 'noticeNoV2') setTimeout(() => b.classList.remove('show'), 10000); });  // missing-table notice stays until tapped
 $('#noticeBanner').onclick = () => $('#noticeBanner').classList.remove('show');
 $('#banner').onclick = () => $('#banner').classList.remove('show');
