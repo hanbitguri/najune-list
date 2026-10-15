@@ -411,10 +411,10 @@ if ('serviceWorker' in navigator && location.protocol !== 'file:') {
 // 🥚 easter egg: tap the bear 3 · 1 · 6 ("316") → purple heart shower
 (() => {
   const bear = $('#bear'); if (!bear) return;
-  const QUICK = 400, PAUSE_MAX = 1500, TARGET = [3, 1, 6];
+  const QUICK = 550, PAUSE_MIN = 600, PAUSE_MAX = 2500, IDLE = 3000, TARGET = [3, 1, 6];
   let taps = [], idle = 0;
   const groups = () => { const g = []; let n = 0; taps.forEach((tm, i) => { if (i && tm - taps[i - 1] > QUICK) { g.push(n); n = 0; } n++; }); g.push(n); return g; };
-  const pausesOk = () => taps.every((tm, i) => !i || (tm - taps[i - 1]) <= QUICK || (tm - taps[i - 1]) >= 450);   // between groups must be a real pause
+  const pausesOk = () => taps.every((tm, i) => !i || (tm - taps[i - 1]) <= QUICK || (tm - taps[i - 1]) >= PAUSE_MIN);   // 550–600ms dead zone = ambiguous → no match
   bear.addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); });
   bear.addEventListener('click', e => { e.preventDefault(); e.stopPropagation(); });
   bear.addEventListener('pointerup', e => {
@@ -422,7 +422,7 @@ if ('serviceWorker' in navigator && location.protocol !== 'file:') {
     const now = performance.now();
     if (taps.length && now - taps[taps.length - 1] > PAUSE_MAX) taps = [];          // too long → start over
     taps.push(now); bear.classList.remove('boop'); void bear.offsetWidth; bear.classList.add('boop');
-    clearTimeout(idle); idle = setTimeout(() => taps = [], PAUSE_MAX);
+    clearTimeout(idle); idle = setTimeout(() => taps = [], IDLE);
     const g = groups();
     if (g.length > 3 || g.some((n, i) => i < g.length - 1 ? n !== TARGET[i] : n > TARGET[i])) return;   // can't match any more; wait for reset
     if (g.length === 3 && g[2] === 6 && g[0] === 3 && g[1] === 1 && pausesOk()) { taps = []; clearTimeout(idle); hearts(); }

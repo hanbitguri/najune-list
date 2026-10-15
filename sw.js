@@ -1,4 +1,4 @@
-const C='najune-v19';const A=['./','index.html','styles.css?v=19','app.js?v=19','i18n.js?v=19','map.js?v=19','directions.js?v=19','store.js?v=19','manifest.json','icon.svg','apple-touch-icon.png','icon-192.png','icon-512.png','favicon-32.png'];
+const C='najune-v20';const A=['./','index.html','styles.css?v=20','app.js?v=20','i18n.js?v=20','map.js?v=20','directions.js?v=20','store.js?v=20','manifest.json','icon.svg','apple-touch-icon.png','icon-192.png','icon-512.png','favicon-32.png'];
 // new versions take over immediately (home-screen PWAs are rarely fully closed) and old caches are removed
 self.addEventListener('install',e=>{self.skipWaiting();e.waitUntil(caches.open(C).then(c=>c.addAll(A)));});
 self.addEventListener('activate',e=>e.waitUntil(caches.keys().then(ks=>Promise.all(ks.filter(k=>k!==C).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));
