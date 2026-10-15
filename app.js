@@ -384,3 +384,56 @@ if ('serviceWorker' in navigator && location.protocol !== 'file:') {
   navigator.serviceWorker.addEventListener('controllerchange', () => { if (hadController && !reloaded) { reloaded = true; location.reload(); } });
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') navigator.serviceWorker.getRegistration().then(r => r?.update()).catch(() => {}); });
 }
+
+// 🥚 easter egg: tap the bear 3 · 1 · 6 ("316") → purple heart shower
+(() => {
+  const bear = $('#bear'); if (!bear) return;
+  const QUICK = 400, PAUSE_MAX = 1500, TARGET = [3, 1, 6];
+  let taps = [], idle = 0;
+  const groups = () => { const g = []; let n = 0; taps.forEach((tm, i) => { if (i && tm - taps[i - 1] > QUICK) { g.push(n); n = 0; } n++; }); g.push(n); return g; };
+  const pausesOk = () => taps.every((tm, i) => !i || (tm - taps[i - 1]) <= QUICK || (tm - taps[i - 1]) >= 450);   // between groups must be a real pause
+  bear.addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); });
+  bear.addEventListener('click', e => { e.preventDefault(); e.stopPropagation(); });
+  bear.addEventListener('pointerup', e => {
+    e.preventDefault(); e.stopPropagation();
+    const now = performance.now();
+    if (taps.length && now - taps[taps.length - 1] > PAUSE_MAX) taps = [];          // too long → start over
+    taps.push(now); bear.classList.remove('boop'); void bear.offsetWidth; bear.classList.add('boop');
+    clearTimeout(idle); idle = setTimeout(() => taps = [], PAUSE_MAX);
+    const g = groups();
+    if (g.length > 3 || g.some((n, i) => i < g.length - 1 ? n !== TARGET[i] : n > TARGET[i])) return;   // can't match any more; wait for reset
+    if (g.length === 3 && g[2] === 6 && g[0] === 3 && g[1] === 1 && pausesOk()) { taps = []; clearTimeout(idle); hearts(); }
+  });
+  function hearts() {
+    try { navigator.vibrate?.([10, 40, 10]); } catch {}
+    bear.classList.remove('boop'); void bear.offsetWidth; bear.classList.add('love');
+    setTimeout(() => bear.classList.remove('love'), 900);
+    const layer = document.createElement('div'); layer.className = 'heart-shower'; document.body.appendChild(layer);
+    const W = innerWidth, H = innerHeight, glyphs = ['💜', '💟', '💜', '💜', '🤍'];
+    if (matchMedia('(prefers-reduced-motion: reduce)').matches) {       // gentle static burst around the bear
+      const r = bear.getBoundingClientRect(), cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+      for (let i = 0; i < 12; i++) { const s = document.createElement('span'), ang = i / 12 * Math.PI * 2, d = 36 + (i % 3) * 14;
+        s.textContent = glyphs[i % 2]; s.style.cssText = `left:${cx + Math.cos(ang) * d}px;top:${cy + 40 + Math.sin(ang) * d}px;font-size:${16 + (i % 3) * 4}px`; layer.appendChild(s); }
+      layer.animate([{ opacity: 0 }, { opacity: 1, offset: .2 }, { opacity: 1, offset: .75 }, { opacity: 0 }], { duration: 2000, fill: 'forwards' });
+      return setTimeout(() => layer.remove(), 2100);
+    }
+    const N = W < 600 ? 64 : 80;
+    for (let i = 0; i < N; i++) {
+      const s = document.createElement('span'), size = 14 + Math.random() * 26, x = Math.random() * W, drift = (Math.random() - .5) * 160;
+      const rot0 = (Math.random() - .5) * 60, rot1 = rot0 + (Math.random() - .5) * 240, dur = 2400 + Math.random() * 1400, delay = Math.random() * 900;
+      const up = Math.random() < .3;                                   // a few float up from the bottom, most rain down
+      s.textContent = glyphs[(Math.random() * glyphs.length) | 0]; s.style.cssText = `left:${x}px;top:0;font-size:${size}px`;
+      if (i % 7 === 0) s.style.filter = 'hue-rotate(-20deg) saturate(.8)';
+      layer.appendChild(s);
+      const y0 = up ? H + 40 : -60, y1 = up ? H * (.15 + Math.random() * .35) : H + 60;
+      s.animate([
+        { transform: `translate3d(0,${y0}px,0) rotate(${rot0}deg) scale(.6)`, opacity: 0 },
+        { transform: `translate3d(${drift * .4}px,${y0 + (y1 - y0) * .25}px,0) rotate(${rot0 + (rot1 - rot0) * .25}deg) scale(1)`, opacity: 1, offset: .2 },
+        { transform: `translate3d(${drift}px,${y0 + (y1 - y0) * .8}px,0) rotate(${rot0 + (rot1 - rot0) * .8}deg) scale(1)`, opacity: .9, offset: .8 },
+        { transform: `translate3d(${drift * 1.1}px,${y1}px,0) rotate(${rot1}deg) scale(.9)`, opacity: 0 }
+      ], { duration: dur, delay, easing: 'cubic-bezier(.25,.6,.35,1)', fill: 'both' });
+    }
+    setTimeout(() => layer.remove(), 4400);
+  }
+  window.__hearts = hearts;   // handy for screenshots/tests
+})();

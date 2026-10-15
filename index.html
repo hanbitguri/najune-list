@@ -11,7 +11,7 @@
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <link rel="icon" href="icon.svg">
-<link rel="stylesheet" href="styles.css?v=15">
+<link rel="stylesheet" href="styles.css?v=16">
 </head>
 <body>
 <div id="map"></div>
@@ -21,7 +21,7 @@
 <div class="zoom glass"><button id="zoomIn" aria-label="+">＋</button><button id="zoomOut" aria-label="−">−</button></div>
 
 <header class="topbar glass">
-  <div class="brand">🧸 <span data-i18n="appName" data-i18n="appName">나주네 리스트</span> <i class="dot" id="syncDot" data-i18n-title="syncStatus"></i></div>
+  <div class="brand"><span id="bear" class="bear" role="img" aria-label="🧸">🧸</span> <span data-i18n="appName">나주네 리스트</span> <i class="dot" id="syncDot" data-i18n-title="syncStatus"></i></div>
   <div class="search">
     <input id="q" type="search" placeholder="장소 검색 (예: 성수 카페)" data-i18n-ph="searchPh" autocomplete="off">
     <ul id="results" class="results"></ul>
@@ -136,10 +136,10 @@
 <div id="toast" class="toast"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
-<script src="i18n.js?v=15"></script>
-<script src="map.js?v=15"></script>
-<script src="directions.js?v=15"></script>
-<script src="store.js?v=15"></script>
-<script src="app.js?v=15"></script>
+<script src="i18n.js?v=16"></script>
+<script src="map.js?v=16"></script>
+<script src="directions.js?v=16"></script>
+<script src="store.js?v=16"></script>
+<script src="app.js?v=16"></script>
 </body>
 </html>

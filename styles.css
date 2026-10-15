@@ -112,7 +112,7 @@ select{flex:1;height:40px;border:0;border-radius:var(--r2);background:var(--w);p
 .lang button.on{color:var(--ink)}
 .lang-ink{position:absolute;top:4px;left:4px;width:32px;height:28px;border-radius:14px;background:var(--pink);box-shadow:var(--sh1);transform:translateX(calc(var(--i) * 100%));transition:transform .5s var(--spring),background .5s var(--ease)}
 .lang[style*="--i: 1"] .lang-ink{background:var(--lav)}
-@media (max-width:420px){.brand>span{display:none}}
+@media (max-width:420px){.brand>span[data-i18n]{display:none}}
 /* kakao map */
 #map img[src*="daumcdn"]{filter:sepia(.12) saturate(.9) brightness(1.02)}
 .pinwrap{padding-bottom:4px}
@@ -200,6 +200,14 @@ a.iconbtn{display:grid;place-items:center;text-decoration:none}
 #map.zooming svg{opacity:0;transition:opacity .12s ease-out}
 #map.zooming .stopnum{transition:opacity .12s;opacity:.85}
 @media (prefers-reduced-motion:reduce){#map.zooming svg{opacity:1}}
+/* easter egg */
+.bear{display:inline-block;cursor:pointer;touch-action:manipulation;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;transform-origin:50% 80%}
+.bear.boop{animation:boop .32s cubic-bezier(.34,1.56,.64,1)}
+.bear.love{animation:love .8s cubic-bezier(.34,1.56,.64,1)}
+@keyframes boop{40%{transform:scale(.86)}100%{transform:scale(1)}}
+@keyframes love{0%{transform:scale(1)}25%{transform:scale(1.35) rotate(-10deg)}50%{transform:scale(.9) rotate(6deg)}75%{transform:scale(1.12)}100%{transform:scale(1)}}
+.heart-shower{position:fixed;inset:0;z-index:3000;pointer-events:none;overflow:hidden;contain:strict}
+.heart-shower span{position:absolute;will-change:transform,opacity;line-height:1;filter:drop-shadow(0 2px 4px rgba(120,80,180,.18))}
 /* desktop */
 @media (min-width:900px){
   .topbar{left:396px;right:auto;width:520px;top:16px}
