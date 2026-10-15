@@ -15,6 +15,28 @@ let filter = 'all', editing = null, pending = null, fitted = false;
 function toast(t) { const el = $('#toast'); el.textContent = t; el.classList.add('show'); clearTimeout(toast.t); toast.t = setTimeout(() => el.classList.remove('show'), 1800); }
 
 /* ---------- rendering ---------- */
+/* Keyed list patching: unchanged nodes are kept (no animation replay), changed ones are swapped in place,
+   only genuinely new ones get the entry animation, and moved ones glide to their new spot (FLIP). */
+function patchList(box, list, emptyHtml) {
+  const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (!list.length) { box.innerHTML = emptyHtml || ''; box.__keys = null; return; }
+  const old = new Map(), first = new Map();
+  [...box.children].forEach(n => { if (n.dataset.key) { old.set(n.dataset.key, n); first.set(n.dataset.key, n.getBoundingClientRect().top); } else n.remove(); });
+  let fresh = 0;
+  const nodes = list.map(({ key, html }) => {
+    const n = old.get(key); if (n && n.__h === html) { old.delete(key); return n; }
+    const tp = document.createElement('template'); tp.innerHTML = html.trim(); const m = tp.content.firstElementChild;
+    m.dataset.key = key; m.__h = html;
+    if (n) { old.delete(key); m.classList.add('swap'); m.addEventListener('animationend', () => m.classList.remove('swap'), { once: true }); }
+    else { m.classList.add('enter'); m.style.animationDelay = Math.min(fresh++, 12) * 30 + 'ms'; m.addEventListener('animationend', e => { if (e.target === m) { m.classList.remove('enter'); m.style.animationDelay = ''; } }, { once: true }); }
+    return m; });
+  old.forEach(n => n.remove());
+  nodes.forEach((n, i) => { if (box.children[i] !== n) box.insertBefore(n, box.children[i] || null); });
+  if (reduce) return;
+  nodes.forEach(n => { const k = n.dataset.key; if (!first.has(k) || n.classList.contains('enter')) return;
+    const dy = first.get(k) - n.getBoundingClientRect().top;
+    if (Math.abs(dy) > 1) n.animate([{ transform: `translateY(${dy}px)` }, { transform: 'none' }], { duration: 320, easing: 'cubic-bezier(.2,.8,.2,1)' }); });
+}
 function render() {
   rebuildCats();
   const s = Store.get(), trip = Store.activeTrip();
@@ -24,31 +46,31 @@ function render() {
   $('#filters').innerHTML = fs.map(([k,l]) => `<button class="chip ${filter===k?'on':''}" data-f="${k}">${esc(l)}</button>`).join('') + `<button class="chip manage" id="manageCats" aria-label="${t('manageCats')}">⚙︎ ${t('manageCats')}</button>`;
   const shown = s.places.filter(p => filter==='all' || (filter==='heart'?p.heart: filter.startsWith('s:')? p.status===filter.slice(2) : p.category===filter))
     .sort((a,b)=>(b.heart-a.heart)||(b.createdAt-a.createdAt));
-  $('#placeList').innerHTML = shown.length ? shown.map((p,i) => `
-    <li class="item" style="animation-delay:${i*30}ms" data-id="${p.id}">
+  patchList($('#placeList'), shown.map(p => ({ key: p.id, html: `
+    <li class="item" data-id="${p.id}">
       ${thumbHtml(p)}
       <div class="body" data-act="edit"><h4>${esc(p.name)}</h4>
         <p><span class="badge" style="background:${STATUS[p.status].color}">${STATUS[p.status].label}</span>${esc([won(p.cost), p.memo, p.addedBy && t('by',{name:p.addedBy})].filter(Boolean).join(' · '))}</p></div>
       <button class="iconbtn heart ${p.heart?'on':''}" data-act="heart" aria-label="${t('heart')}">${p.heart?'💟':'🤍'}</button>
       <a class="iconbtn" href="${kakaoLink(p)}" target="_blank" rel="noopener" aria-label="${t('openKakao')}" title="${t('openKakao')}">🧭</a>
       <button class="iconbtn" data-act="stop" aria-label="${t('addToTrip')}">＋</button>
-    </li>`).join('') : `<p class="hint">${t('emptyPlaces')}</p>`;
+    </li>` })), `<p class="hint">${t('emptyPlaces')}</p>`);
 
   // trips
   $('#tripPick').innerHTML = trip ? `<span><b>${esc(trip.name)}</b>${trip.date ? `<small>${fmtDate(trip.date)}</small>` : ''}</span><i class="chev" aria-hidden="true"><svg viewBox="0 0 16 16" width="16" height="16"><path d="M4 6l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></i>` : `<span><b>${t('noTrips')}</b></span><i class="chev" aria-hidden="true"><svg viewBox="0 0 16 16" width="16" height="16"><path d="M4 6l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></i>`;
   $('#editTrip').style.display = trip ? '' : 'none';
   const stops = trip ? trip.stops.map(id => s.places.find(p => p.id === id)).filter(Boolean) : [];
-  const meta = trip?.meta || {}; let cost = 0, html = '';
+  const meta = trip?.meta || {}; let cost = 0; const rows = [];
   stops.forEach((p, i) => {
-    if (i) html += `<li class="leg" data-leg="${i}" data-k="${stops[i-1].id}>${p.id}">${legText(stops[i-1], p).html}</li>`;
+    if (i) rows.push({ key: 'leg:' + stops[i-1].id + '>' + p.id, html: `<li class="leg" data-leg="${i}" data-k="${stops[i-1].id}>${p.id}">${legText(stops[i-1], p).html}</li>` });
     cost += +p.cost || 0; const m = meta[p.id] || {};
-    html += `<li class="item" data-id="${p.id}" data-idx="${i}" style="animation-delay:${i*40}ms">
+    rows.push({ key: 'stop:' + p.id, html: `<li class="item" data-id="${p.id}" data-idx="${i}">
       <div class="num">${i+1}</div><div class="body" data-act="fly"><h4>${cat(p.category).emoji} ${esc(p.name)}</h4><p>${esc(m.note || won(p.cost) || p.memo || '')}</p></div>
       <button class="timechip ${m.time ? 'set' : ''}" data-act="meta" aria-label="${t('time')}">${m.time ? esc(m.time) : '＋ ' + t('time')}</button>
       <a class="iconbtn" href="${kakaoLink(p)}" target="_blank" rel="noopener" aria-label="${t('openKakao')}">🧭</a>
-      <button class="iconbtn" data-act="unstop" aria-label="${t('removeStop')}">✕</button><span class="handle" aria-label="${t('reorder')}">☰</span></li>`;
+      <button class="iconbtn" data-act="unstop" aria-label="${t('removeStop')}">✕</button><span class="handle" aria-label="${t('reorder')}">☰</span></li>` });
   });
-  $('#stopList').innerHTML = html;
+  patchList($('#stopList'), rows, '');
   const nTimes = stops.filter(p => meta[p.id]?.time).length;
   $('#tripMeta').innerHTML = trip ? `<div class="row between">
       <div class="legend" aria-hidden="true"><span><i class="ln walk"></i>${t('mWalk')}</span><span><i class="ln car"></i>${t('mCar')}</span><span><i class="ln transit"></i>${t('mTransit')}</span></div>
