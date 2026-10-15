@@ -1,3 +1,8 @@
-const C='najune-v12';const A=['./','index.html','styles.css','app.js','i18n.js','map.js','directions.js','store.js','manifest.json','icon.svg','apple-touch-icon.png'];
-self.addEventListener('install',e=>e.waitUntil(caches.open(C).then(c=>c.addAll(A))));
-self.addEventListener('fetch',e=>{if(e.request.method!=='GET'||/supabase\.co|kakao\.com|daumcdn\.net/.test(e.request.url))return;e.respondWith(fetch(e.request).then(r=>{const cp=r.clone();if(new URL(e.request.url).origin===location.origin)caches.open(C).then(c=>c.put(e.request,cp));return r}).catch(()=>caches.match(e.request)))});
+const C='najune-v13';const A=['./','index.html','styles.css?v=13','app.js?v=13','i18n.js?v=13','map.js?v=13','directions.js?v=13','store.js?v=13','manifest.json','icon.svg','apple-touch-icon.png'];
+// new versions take over immediately (home-screen PWAs are rarely fully closed) and old caches are removed
+self.addEventListener('install',e=>{self.skipWaiting();e.waitUntil(caches.open(C).then(c=>c.addAll(A)));});
+self.addEventListener('activate',e=>e.waitUntil(caches.keys().then(ks=>Promise.all(ks.filter(k=>k!==C).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));
+self.addEventListener('fetch',e=>{if(e.request.method!=='GET'||/supabase\.co|kakao\.com|kakaocdn\.net|daumcdn\.net/.test(e.request.url))return;
+  const same=new URL(e.request.url).origin===location.origin;
+  // network-first, bypassing the HTTP cache for our own files so an update is never served stale
+  e.respondWith(fetch(same?new Request(e.request,{cache:'no-cache'}):e.request).then(r=>{if(same&&r.ok){const cp=r.clone();caches.open(C).then(c=>c.put(e.request,cp));}return r}).catch(()=>caches.match(e.request)))});

@@ -373,4 +373,10 @@ Store.init(adapter).then(() => {
   if (qs.has('sample')) loadSample();
   if (qs.get('tab')) document.querySelector(`.tab[data-tab="${qs.get('tab')}"]`)?.click();
 });
-if ('serviceWorker' in navigator && location.protocol !== 'file:') navigator.serviceWorker.register('sw.js').catch(()=>{});
+if ('serviceWorker' in navigator && location.protocol !== 'file:') {
+  const hadController = !!navigator.serviceWorker.controller; let reloaded = false;
+  navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then(r => r.update()).catch(() => {});
+  // when a new version takes control, reload once so HTML/CSS/JS all come from the same version
+  navigator.serviceWorker.addEventListener('controllerchange', () => { if (hadController && !reloaded) { reloaded = true; location.reload(); } });
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') navigator.serviceWorker.getRegistration().then(r => r?.update()).catch(() => {}); });
+}

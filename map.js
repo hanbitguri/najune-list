@@ -63,7 +63,13 @@ const MapView = (() => {
       await loadSdk();
       map = new kakao.maps.Map(document.getElementById(elId), { center: LL(37.5665, 126.978), level: 7 });
       ps = new kakao.maps.services.Places(); ready = true; longPress();
-      kakao.maps.event.addListener(map, 'dragstart', () => onDrag?.());   // fires only on real drags, not taps
+      kakao.maps.event.addListener(map, 'dragstart', () => onDrag?.());
+      // Kakao redraws vector shapes only after a zoom finishes, so lines "jump". Fade the vector layer out
+      // while the tiles animate and fade it back once the new geometry is drawn (screen-px widths are unchanged).
+      const node = map.getNode(); let zt = 0;
+      kakao.maps.event.addListener(map, 'zoom_start', () => { clearTimeout(zt); node.classList.add('zooming'); });
+      const back = () => { clearTimeout(zt); zt = setTimeout(() => node.classList.remove('zooming'), 60); };
+      kakao.maps.event.addListener(map, 'zoom_changed', back); kakao.maps.event.addListener(map, 'idle', back);   // fires only on real drags, not taps
       if (pending.draw) draw(pending.draw); if (pending.fit) fit(...pending.fit); pending = {};
     },
     draw(args) { ready ? draw(args) : (pending.draw = args); },
