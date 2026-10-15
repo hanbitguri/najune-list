@@ -63,7 +63,7 @@ function t(k, v = {}) {
 function applyI18n() {
   document.documentElement.lang = LANG;
   document.title = t('appName');
-  document.querySelector('meta[name="apple-mobile-web-app-title"]')?.setAttribute('content', t('appName'));
+  // home-screen name stays 나주네 리스트 in every language
   document.querySelectorAll('[data-i18n]').forEach(el => { const n = [...el.childNodes].find(x => x.nodeType === 3 && x.textContent.trim()); if (n) n.textContent = t(el.dataset.i18n); else el.textContent = t(el.dataset.i18n); });
   document.querySelectorAll('[data-i18n-ph]').forEach(el => el.placeholder = t(el.dataset.i18nPh));
   document.querySelectorAll('[data-i18n-title]').forEach(el => el.title = t(el.dataset.i18nTitle));
