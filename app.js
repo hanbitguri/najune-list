@@ -35,7 +35,7 @@ function render() {
     </li>`).join('') : `<p class="hint">${t('emptyPlaces')}</p>`;
 
   // trips
-  $('#tripPick').innerHTML = trip ? `<span><b>${esc(trip.name)}</b>${trip.date ? `<small>${fmtDate(trip.date)}</small>` : ''}</span><i>⌄</i>` : `<span><b>${t('noTrips')}</b></span><i>⌄</i>`;
+  $('#tripPick').innerHTML = trip ? `<span><b>${esc(trip.name)}</b>${trip.date ? `<small>${fmtDate(trip.date)}</small>` : ''}</span><i class="chev" aria-hidden="true"><svg viewBox="0 0 16 16" width="16" height="16"><path d="M4 6l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></i>` : `<span><b>${t('noTrips')}</b></span><i class="chev" aria-hidden="true"><svg viewBox="0 0 16 16" width="16" height="16"><path d="M4 6l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></i>`;
   $('#editTrip').style.display = trip ? '' : 'none';
   const stops = trip ? trip.stops.map(id => s.places.find(p => p.id === id)).filter(Boolean) : [];
   const meta = trip?.meta || {}; let cost = 0, html = '';
@@ -174,27 +174,54 @@ document.querySelectorAll('.tab').forEach((b, i) => b.onclick = () => {
   $('.tab-ink').style.transform = `translateX(${i*100}%)`;
 });
 
-// drag-to-reorder (pointer events, works on touch)
+// drag-to-reorder: lift → follow finger 1:1 → neighbours slide (FLIP-style) → springy settle → commit
 (() => {
+  const list = $('#stopList'), buzz = ms => { try { navigator.vibrate?.(ms); } catch {} };
+  const reduce = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
   let drag = null;
-  $('#stopList').addEventListener('pointerdown', e => {
-    if (!e.target.classList.contains('handle')) return;
+  const blockScroll = e => { if (drag) e.preventDefault(); };
+  list.addEventListener('touchmove', blockScroll, { passive: false });
+  list.addEventListener('pointerdown', e => {
+    if (drag || !e.target.classList.contains('handle')) return;
     const li = e.target.closest('.item'); e.preventDefault();
-    const items = [...document.querySelectorAll('#stopList .item')];
-    drag = { li, from: +li.dataset.idx, to: +li.dataset.idx, y0: e.clientY, items, rects: items.map(x => x.getBoundingClientRect()) };
-    li.classList.add('drag'); li.setPointerCapture(e.pointerId);
+    const items = [...list.querySelectorAll('.item')], rects = items.map(x => x.getBoundingClientRect());
+    const from = items.indexOf(li);
+    drag = { li, items, rects, from, to: from, y0: e.clientY, dy: 0, id: e.pointerId, handle: e.target, panel: list.closest('.panel') };
+    drag.panel.style.overflow = 'hidden'; list.classList.add('dragging');
+    items.forEach(it => { if (it !== li) it.style.transition = 'transform 200ms cubic-bezier(.2,.8,.2,1)'; });
+    li.style.transition = 'box-shadow 200ms ease, transform 0s'; li.classList.add('drag');
+    li.style.transform = 'translate3d(0,0,0) scale(1.03) rotate(.6deg)';
+    e.target.setPointerCapture(e.pointerId); buzz(8);
   });
-  $('#stopList').addEventListener('pointermove', e => {
-    if (!drag) return; const dy = e.clientY - drag.y0; drag.li.style.transform = `translateY(${dy}px) scale(1.03)`;
-    const cy = drag.rects[drag.from].top + drag.rects[drag.from].height/2 + dy;
-    let to = drag.rects.findIndex(r => cy < r.top + r.height/2); if (to < 0) to = drag.rects.length - 1;
-    drag.to = to; const h = drag.rects[drag.from].height + 8;
-    drag.items.forEach((it, i) => { if (it === drag.li) return; let s = 0;
-      if (drag.from < to && i > drag.from && i <= to) s = -h; if (drag.from > to && i < drag.from && i >= to) s = h;
-      it.style.transition = 'transform .3s var(--spring)'; it.style.transform = s ? `translateY(${s}px)` : ''; });
+  list.addEventListener('pointermove', e => {
+    if (!drag || e.pointerId !== drag.id) return; e.preventDefault();
+    const { li, items, rects, from } = drag, dy = drag.dy = e.clientY - drag.y0;
+    li.style.transform = `translate3d(0,${dy}px,0) scale(1.03) rotate(.6deg)`;
+    const cy = rects[from].top + rects[from].height / 2 + dy;
+    const to = rects.filter((r, i) => i !== from && r.top + r.height / 2 < cy).length;   // slots whose centre we've passed
+    if (to !== drag.to) { drag.to = to; buzz(4);
+      items.forEach((it, i) => { if (it === li) return; let s = 0;
+        if (from < to && i > from && i <= to) s = rects[i - 1].top - rects[i].top;      // slide up into previous slot
+        if (from > to && i < from && i >= to) s = rects[i + 1].top - rects[i].top;      // slide down into next slot
+        it.style.transform = s ? `translate3d(0,${s}px,0)` : ''; }); }
   });
-  const end = () => { if (!drag) return; const { from, to } = drag; drag = null; if (from !== to) Store.reorder(from, to); else render(); };
-  $('#stopList').addEventListener('pointerup', end); $('#stopList').addEventListener('pointercancel', end);
+  const end = e => {
+    if (!drag || (e && e.pointerId !== drag.id)) return; const d = drag; drag = null;
+    const { li, items, rects, from, to } = d;
+    try { d.handle.releasePointerCapture(d.id); } catch {}
+    const target = rects[to].top - rects[from].top;
+    const finish = () => { if (finish.done) return; finish.done = true;
+      d.panel.style.overflow = ''; list.classList.remove('dragging');
+      if (from !== to) { list.classList.add('settled'); Store.reorder(from, to); setTimeout(() => list.classList.remove('settled'), 60); }
+      else { li.classList.remove('drag', 'settle'); li.style.cssText = li.style.cssText.replace(/transform[^;]*;?|transition[^;]*;?/g, ''); items.forEach(it => { it.style.transform = ''; it.style.transition = ''; }); } };
+    if (reduce()) return finish();
+    li.classList.remove('drag'); li.classList.add('settle');
+    li.style.transition = 'transform 350ms cubic-bezier(.34,1.56,.64,1), box-shadow 350ms ease';
+    requestAnimationFrame(() => { li.style.transform = `translate3d(0,${target}px,0) scale(1) rotate(0deg)`; });
+    li.addEventListener('transitionend', ev => { if (ev.propertyName === 'transform') finish(); });
+    setTimeout(finish, 420); if (from !== to) buzz(6);
+  };
+  list.addEventListener('pointerup', end); list.addEventListener('pointercancel', end);
 })();
 
 // bottom sheet drag (mobile)
