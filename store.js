@@ -172,6 +172,9 @@ function migrate(s) {
   if (!s.categories.find(c => c.id === 'etc')) { s.categories.push({ ...DEFAULT_CATS.at(-1) }); changed = true; }
   const ids = new Set(s.categories.map(c => c.id));
   (s.places || []).forEach(p => { if (!ids.has(p.category)) { p.category = 'etc'; changed = true; } });
+  // dedupe places by id and sanitize trip stops (null / duplicate ids)
+  if (Array.isArray(s.places)) { const m = new Map(); s.places.forEach(p => p && p.id && m.set(p.id, p)); if (m.size !== s.places.length) { s.places = [...m.values()]; changed = true; } }
+  (s.trips || []).forEach(tr => { const st = [...new Set((tr.stops || []).filter(x => typeof x === 'string' && x))]; if (st.length !== (tr.stops || []).length) { tr.stops = st; changed = true; } });
   return changed;
 }
 
@@ -203,7 +206,7 @@ const Store = (() => {
     addStop(pid) { let tr = this.activeTrip() || this.addTrip(t('firstTrip')); if (!tr.stops.includes(pid)) tr.stops.push(pid);
       const p = state.places.find(x => x.id === pid); if (p && p.status === 'wish') p.status = 'planned'; commit(); },
     removeStop(pid) { const t = this.activeTrip(); if (t) t.stops = t.stops.filter(s => s !== pid); commit(); },
-    reorder(from, to) { const t = this.activeTrip(); if (!t) return; const [m] = t.stops.splice(from, 1); t.stops.splice(to, 0, m); commit(); },
+    reorder(from, to) { const t = this.activeTrip(); if (!t) return; const L = t.stops.length; if (!(from >= 0 && from < L && to >= 0 && to < L) || from === to) return; const [m] = t.stops.splice(from, 1); t.stops.splice(to, 0, m); commit(); },
     replace(s) { state = { ...empty(), ...s }; migrate(state); fixActive(); if (s.activeTripId) this.setActiveTrip(s.activeTripId, true); commit(); },
     merge(s) {
       const byId = new Map(state.places.map(p => [p.id, p]));

@@ -22,12 +22,13 @@ function patchList(box, list, emptyHtml) {
   if (!list.length) { box.innerHTML = emptyHtml || ''; box.__keys = null; return; }
   const old = new Map(), first = new Map();
   [...box.children].forEach(n => { if (n.dataset.key) { old.set(n.dataset.key, n); first.set(n.dataset.key, n.getBoundingClientRect().top); } else n.remove(); });
-  let fresh = 0;
+  let fresh = 0; const seen = new Set();
+  list = list.filter(r => !seen.has(r.key) && seen.add(r.key));
   const nodes = list.map(({ key, html }) => {
     const n = old.get(key); if (n && n.__h === html) { old.delete(key); return n; }
     const tp = document.createElement('template'); tp.innerHTML = html.trim(); const m = tp.content.firstElementChild;
     m.dataset.key = key; m.__h = html;
-    if (n) { old.delete(key); m.classList.add('swap'); m.addEventListener('animationend', () => m.classList.remove('swap'), { once: true }); }
+    if (n) { old.delete(key); n.remove(); m.classList.add('swap'); m.addEventListener('animationend', () => m.classList.remove('swap'), { once: true }); }
     else { m.classList.add('enter'); m.style.animationDelay = Math.min(fresh++, 12) * 30 + 'ms'; m.addEventListener('animationend', e => { if (e.target === m) { m.classList.remove('enter'); m.style.animationDelay = ''; } }, { once: true }); }
     return m; });
   old.forEach(n => n.remove());
