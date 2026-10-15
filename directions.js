@@ -15,6 +15,7 @@ const Directions = (() => {
     get key() { return localStorage.getItem(KEY_LS) || ''; },
     setKey(k) { k ? localStorage.setItem(KEY_LS, k.trim()) : localStorage.removeItem(KEY_LS); },
     walk(km) { const d = km * 1.25; return { sec: d / 4.5 * 3600, km: d, est: true }; },
+    transit(km) { const d = km * 1.3; return { sec: d / 25 * 3600 + 8 * 60, km: d, est: true }; },  // no public transit API → estimate
     carEstimate(km) { const d = km * 1.35; return { sec: d / 15 * 3600 + 240, km: d, est: true }; },  // Seoul city traffic: ~15 km/h + 4 min parking/lights
     cachedCar(a, b) { const c = cache[ck(a, b)]; return c && Date.now() - c.ts < 7 * 864e5 ? c : null; },
     async car(a, b) {

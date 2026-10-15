@@ -66,6 +66,11 @@
       <button class="btn pink" id="sampleBtn" data-i18n="sample">샘플 데이터</button>
       <button class="btn ghost" id="resetBtn" data-i18n="reset">전체 초기화</button>
     </div>
+    <div class="space-card">
+      <div class="space-top"><span data-i18n="walkMax">자동 모드: 이 거리까지는 도보</span><b id="walkMaxVal">1.2km</b></div>
+      <input type="range" id="walkMax" class="range" min="0.3" max="3" step="0.1" value="1.2">
+      <p class="hint" data-i18n="walkMaxHint">더 먼 구간은 차로 계산해요. 두 사람 모두에게 똑같이 적용돼요.</p>
+    </div>
     <div class="space-card" style="margin-top:12px">
       <div class="space-top"><span data-i18n="restKey">Kakao REST 키 (차 이동시간)</span></div>
       <p class="hint" data-i18n="restKeyHint">이 기기에만 저장돼요.</p>
@@ -124,6 +129,14 @@
     <label class="field"><span data-i18n="note">메모</span><input name="note" maxlength="60" placeholder="예: 예약 12:20" data-i18n-ph="notePh"></label>
     <div class="row end"><button type="button" class="btn ghost" id="cancelStop" data-i18n="cancel">취소</button><button type="submit" class="btn pink" data-i18n="save">저장</button></div>
   </form>
+</div>
+<div id="infoModal" class="modal" aria-hidden="true">
+  <div class="card">
+    <h3 data-i18n="transitInfoTitle">대중교통 시간 안내</h3>
+    <p class="hint" id="infoRoute"></p>
+    <p data-i18n="transitInfo" class="info-text">대중교통 시간은 거리 기반 추정치예요. 실제 시간은 카카오맵에서 확인하세요.</p>
+    <div class="row end"><a class="btn mint" id="infoLink" target="_blank" rel="noopener" data-i18n="openTransit">🚇 카카오맵 대중교통 길찾기</a><button type="button" class="btn ghost" id="infoClose" data-i18n="done">완료</button></div>
+  </div>
 </div>
 <div id="pickModal" class="modal" aria-hidden="true">
   <div class="card picker-card"><h3 id="pickTitle"></h3><ul class="picklist" id="pickList" role="listbox"></ul></div>

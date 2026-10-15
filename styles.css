@@ -165,6 +165,25 @@ a.iconbtn{display:grid;place-items:center;text-decoration:none}
 .stopnum.wide{width:auto;padding:0 8px 0 9px;gap:4px;display:flex;align-items:center}
 .stopnum em{font-style:normal;font-weight:600;font-size:11px;opacity:.9}
 .notice{background:var(--lav);top:calc(72px + env(safe-area-inset-top))}
+/* per-leg modes */
+.leg{display:flex;align-items:center;justify-content:center;gap:8px;margin:-2px 0!important;padding:2px 0!important}
+.legmode{display:inline-flex;align-items:center;gap:4px;height:28px;padding:0 10px;border:0;border-radius:14px;font:inherit;font-size:14px;cursor:pointer;box-shadow:var(--sh1);transition:transform .35s var(--spring),background .3s}
+.legmode:active{transform:scale(.88)}
+.legmode small{font-size:10px;color:var(--sub);font-weight:600}
+.legmode.m-walk{background:#DDF1E8}.legmode.m-car{background:#E8E2F8}.legmode.m-transit{background:#FBE0E8}
+.legmode.auto{background:var(--w)}
+.legtxt{font-size:12px;color:var(--sub)}
+.legInfo{width:22px;height:22px;border:0;border-radius:11px;background:var(--b2);color:var(--sub);font-size:12px;cursor:pointer;padding:0}
+.leg.fresh .legtxt{animation:fade .5s var(--ease)}
+.legend{display:flex;gap:12px;font-size:11px;color:var(--sub);align-items:center}
+.legend span{display:inline-flex;align-items:center;gap:4px}
+.ln{display:inline-block;width:18px;height:0;border-top:3px solid}
+.ln.walk{border-top-style:dotted;border-color:#5FB894}.ln.car{border-color:#9B87D9}.ln.transit{border-top-style:dashed;border-color:#E68AA6}
+.info-text{font-size:14px;line-height:1.6;margin:8px 0 0}
+.range{width:100%;margin:12px 0 4px;-webkit-appearance:none;appearance:none;height:6px;border-radius:3px;background:linear-gradient(90deg,var(--mint) var(--p,33%),var(--b2) var(--p,33%));outline:none}
+.range::-webkit-slider-thumb{-webkit-appearance:none;width:24px;height:24px;border-radius:12px;background:#fff;box-shadow:var(--sh1),0 0 0 1px var(--line);transition:transform .3s var(--spring)}
+.range:active::-webkit-slider-thumb{transform:scale(1.15)}
+.range::-moz-range-thumb{width:24px;height:24px;border-radius:12px;background:#fff;border:0;box-shadow:var(--sh1)}
 /* desktop */
 @media (min-width:900px){
   .topbar{left:396px;right:auto;width:520px;top:16px}

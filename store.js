@@ -48,8 +48,8 @@ const SupabaseAdapter = (space) => {
     },
     async push(state) {
       if (!sb) return;
-      const { places, trips, categories } = state;
-      const { error } = await sb.from('spaces').upsert({ id: space, data: { version: 2, places, trips, categories }, client_id: clientId, updated_at: new Date().toISOString() });
+      const { places, trips, categories, settings } = state;
+      const { error } = await sb.from('spaces').upsert({ id: space, data: { version: 3, places, trips, categories, settings }, client_id: clientId, updated_at: new Date().toISOString() });
       if (error) a.setStatus('local', 'errSync');
     },
     async save(state) { await local.save(state); clearTimeout(t); t = setTimeout(() => a.push(state), 300); },
@@ -84,10 +84,12 @@ const ItemsAdapter = (space, sb, clientId, local, hooks) => {
     (s.categories || []).forEach((c, i) => m.set(key('category', c.id), { kind: 'category', id: c.id, data: { ...c, order: i } }));
     (s.trips || []).forEach((tr, i) => m.set(key('trip', tr.id), { kind: 'trip', id: tr.id, data: { ...tr, order: i } }));
     (s.places || []).forEach(p => m.set(key('place', p.id), { kind: 'place', id: p.id, data: p }));
+    if (s.settings) m.set(key('category', '__settings'), { kind: 'category', id: '__settings', data: { __settings: true, ...s.settings } });
     return m; };
   const fromItems = (m, base = {}) => { m.forEach((x, k) => { if (x.data.order !== undefined) ord.set(k, x.data.order); }); const by = k => [...m.values()].filter(x => x.kind === k).map(x => x.data);
     const strip = ({ order, ...r }) => r, byOrd = (a, b) => (a.order ?? 0) - (b.order ?? 0);
-    return { ...base, version: 3, places: by('place'), trips: by("trip").sort(byOrd).map(strip), categories: by("category").sort(byOrd).map(strip) }; };
+    const cats = by("category"), st = cats.find(c => c.__settings); const { __settings, ...settings } = st || {};
+    return { ...base, version: 3, places: by('place'), trips: by("trip").sort(byOrd).map(strip), categories: cats.filter(c => !c.__settings).sort(byOrd).map(strip), settings: st ? settings : (base.settings || {}) }; };
   const applyRow = (m, r) => { const k = key(r.kind, r.id);
     if (r.deleted) { m.delete(k); snap.delete(k); } else { m.set(k, { kind: r.kind, id: r.id, data: r.data }); snap.set(k, JSON.stringify(r.data)); } };
   async function push() {
@@ -175,7 +177,7 @@ function migrate(s) {
 
 const Store = (() => {
   let adapter, state = empty(), listeners = [];
-  function empty() { return { version: 3, places: [], trips: [], categories: DEFAULT_CATS.map(c => ({ ...c })), activeTripId: null }; }
+  function empty() { return { version: 3, places: [], trips: [], categories: DEFAULT_CATS.map(c => ({ ...c })), settings: {}, activeTripId: null }; }
   const uid = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
   const emit = (remote) => listeners.forEach(f => f(state, remote));
   const commit = () => { adapter.save(state); emit(); };
@@ -223,6 +225,12 @@ const Store = (() => {
     removeTrip(id) { state.trips = state.trips.filter(x => x.id !== id); fixActive(); this.setActiveTrip(state.activeTripId, true); commit(); },
     setStopMeta(pid, patch) { const tr = this.activeTrip(); if (!tr) return; tr.meta = tr.meta || {}; const m = { ...(tr.meta[pid] || {}), ...patch };
       Object.keys(m).forEach(k => { if (!m[k]) delete m[k]; }); if (Object.keys(m).length) tr.meta[pid] = m; else delete tr.meta[pid]; commit(); },
+    // space-wide settings (synced) & per-leg travel mode overrides (synced in the trip)
+    get settings() { return { walkMaxKm: 1.2, ...(state.settings || {}) }; },
+    setSetting(k, v) { state.settings = { ...(state.settings || {}), [k]: v }; commit(); },
+    setLegMode(legKey, mode) { const tr = this.activeTrip(); if (!tr) return; const lm = { ...(tr.legModes || {}) };
+      const adj = new Set(tr.stops.slice(1).map((id, i) => tr.stops[i] + '>' + id)); Object.keys(lm).forEach(k => { if (!adj.has(k)) delete lm[k]; }); // prune stale legs
+      if (mode) lm[legKey] = mode; else delete lm[legKey]; tr.legModes = lm; commit(); },
     sortStopsByTime() { const tr = this.activeTrip(); if (!tr) return; const tm = id => tr.meta?.[id]?.time || '99:99';
       tr.stops = tr.stops.map((id, i) => [id, i]).sort((a, b) => tm(a[0]).localeCompare(tm(b[0])) || a[1] - b[1]).map(x => x[0]); commit(); },
     reset() { state = empty(); commit(); }

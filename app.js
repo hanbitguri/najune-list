@@ -51,7 +51,7 @@ function render() {
   $('#stopList').innerHTML = html;
   const nTimes = stops.filter(p => meta[p.id]?.time).length;
   $('#tripMeta').innerHTML = trip ? `<div class="row between">
-      <div class="modeseg" style="--i:${travelMode === 'car' ? 1 : 0}"><span class="ink"></span><button data-mode="walk" class="${travelMode==='walk'?'on':''}">${t('modeWalk')}</button><button data-mode="car" class="${travelMode==='car'?'on':''}">${t('modeCar')}</button></div>
+      <div class="legend" aria-hidden="true"><span><i class="ln walk"></i>${t('mWalk')}</span><span><i class="ln car"></i>${t('mCar')}</span><span><i class="ln transit"></i>${t('mTransit')}</span></div>
       <div class="row tight">${nTimes >= 2 ? `<button class="chip" id="sortTime">${t('sortByTime')}</button>` : ''}<button class="chip ${mapTimes ? 'on' : ''}" id="mapTimes">${t('mapTimes')}</button></div></div>
     <p id="tripTotals" class="totals"></p>` : t('tripEmpty');
   tripCost = cost; updateTotals(stops); fillLegs(stops);
@@ -59,7 +59,7 @@ function render() {
 
   // map
   s.places.forEach(p => { Object.defineProperty(p, '_color', { value: cat(p.category).color, configurable: true }); Object.defineProperty(p, '_emoji', { value: cat(p.category).emoji, configurable: true }); });
-  MapView.draw({ places: s.places, stops, labels: stops.map(p => mapTimes ? meta[p.id]?.time || '' : ''), onPin: p => { MapView.flyTo(p.lat, p.lng); openForm(p); } });
+  MapView.draw({ places: s.places, stops, modes: stops.slice(1).map((b, i) => legMode(stops[i], b).mode), labels: stops.map(p => mapTimes ? meta[p.id]?.time || '' : ''), onPin: p => { MapView.flyTo(p.lat, p.lng); openForm(p); } });
   if (!fitted && s.places.length) { fitted = true; const mob = innerWidth < 900;
     MapView.fit(stops.length > 1 ? stops : s.places, mob ? [80, 24, 340, 24] : [96, 48, 48, 420]); }
 }
@@ -80,24 +80,45 @@ $('#stopList').onclick = e => {
   if (act === 'unstop') Store.removeStop(p.id); else if (act === 'fly') MapView.flyTo(p.lat, p.lng); else if (act === 'meta') openStop(p, +li.dataset.idx);
 };
 // travel time
-let travelMode = localStorage.getItem('najune-mode') || 'walk', mapTimes = localStorage.getItem('najune-maptime') !== '0', tripCost = 0, legRes = [];
+let mapTimes = localStorage.getItem('najune-maptime') !== '0', tripCost = 0;
 const fmtDate = iso => { try { return new Intl.DateTimeFormat(LANG, { month: 'short', day: 'numeric', weekday: 'short' }).format(new Date(iso + 'T00:00')); } catch { return iso; } };
-function legText(a, b) { const km = dist(a, b);
-  let r = travelMode === 'walk' ? Directions.walk(km) : (Directions.cachedCar(a, b) || Directions.carEstimate(km));
-  return { r, html: `${travelMode === 'walk' ? '🚶' : '🚗'} ${fmtDur(r.sec)} · ${fmtKm(r.km)}${r.est ? `<em>${t('legEst')}</em>` : ''}` }; }
+const MODE_ICON = { walk: '🚶', car: '🚗', transit: '🚇' }, CYCLE = [null, 'walk', 'car', 'transit'];
+function legMode(a, b) { const ov = Store.activeTrip()?.legModes?.[a.id + '>' + b.id];
+  return ov ? { mode: ov, auto: false } : { mode: dist(a, b) <= Store.settings.walkMaxKm ? 'walk' : 'car', auto: true }; }
+function legResult(a, b, mode) { const km = dist(a, b);
+  return mode === 'walk' ? Directions.walk(km) : mode === 'transit' ? Directions.transit(km) : (Directions.cachedCar(a, b) || Directions.carEstimate(km)); }
+function legText(a, b) { const { mode, auto } = legMode(a, b), r = legResult(a, b, mode);
+  return { r, mode, html: `<button class="legmode m-${mode} ${auto ? 'auto' : ''}" data-cycle aria-label="${t('legModeTap')}" title="${t('legModeTap')}">${MODE_ICON[mode]}${auto ? `<small>${t('mAuto')}</small>` : ''}</button>
+    <span class="legtxt">${fmtDur(r.sec)} · ${fmtKm(r.km)}${r.est ? `<em>${t('legEst')}</em>` : ''}</span>${mode === 'transit' ? `<button class="legInfo" data-info aria-label="${t('transitInfoTitle')}">ⓘ</button>` : ''}` }; }
 function updateTotals(stops) { const el = $('#tripTotals'); if (!el) return;
   let sec = 0, km = 0, est = false; for (let i = 1; i < stops.length; i++) { const { r } = legText(stops[i-1], stops[i]); sec += r.sec; km += r.km; est ||= r.est; }
   el.innerHTML = t('tripTotal', { n: stops.length, time: stops.length > 1 ? fmtDur(sec) : '–', d: fmtKm(km) }) + (est && stops.length > 1 ? `<em>${t('legEst')}</em>` : '') + (tripCost ? t('tripCost', { c: won(tripCost) }) : ''); }
-let legSeq = 0, keyWarned = false;
+let keyWarned = false;
 const currentStops = () => { const tr = Store.activeTrip(), s = Store.get(); return tr ? tr.stops.map(id => s.places.find(p => p.id === id)).filter(Boolean) : []; };
-async function fillLegs(stops) { if (travelMode !== 'car' || stops.length < 2) return;
-  await Promise.all(stops.slice(1).map(async (b, k) => { const a = stops[k], res = await Directions.car(a, b);
+async function fillLegs(stops) { if (stops.length < 2) return;
+  await Promise.all(stops.slice(1).map(async (b, k) => { const a = stops[k]; if (legMode(a, b).mode !== 'car' || Directions.cachedCar(a, b)) return;
+    const res = await Directions.car(a, b);
     if (res?.error === 'auth' && !keyWarned) { keyWarned = true; toast(t('tKeyBad')); }
-    if (!res || res.error || travelMode !== 'car') return;
+    if (!res || res.error || legMode(a, b).mode !== 'car') return;
     const el = document.querySelector(`#stopList .leg[data-k="${a.id}>${b.id}"]`); if (el) { el.innerHTML = legText(a, b).html; el.classList.add('fresh'); }
     updateTotals(currentStops()); })); }
-$('#tripMeta').addEventListener('click', e => { const m = e.target.closest('[data-mode]');
-  if (m) { travelMode = m.dataset.mode; localStorage.setItem('najune-mode', travelMode); return render(); }
+// leg row: tap icon → cycle 자동 → 🚶 → 🚗 → 🚇 → 자동 ; ⓘ → transit disclosure sheet
+$('#stopList').addEventListener('click', e => { const leg = e.target.closest('.leg'); if (!leg) return; e.stopPropagation();
+  const [aId, bId] = leg.dataset.k.split('>'), s = Store.get(), A = s.places.find(p => p.id === aId), B = s.places.find(p => p.id === bId); if (!A || !B) return;
+  if (e.target.closest('[data-info]')) return openTransitInfo(A, B);
+  if (e.target.closest('[data-cycle]')) { const ov = Store.activeTrip()?.legModes?.[leg.dataset.k] || null;
+    const next = CYCLE[(CYCLE.indexOf(ov) + 1) % CYCLE.length]; Store.setLegMode(leg.dataset.k, next);
+    toast(next ? `${MODE_ICON[next]} ${t('m' + next[0].toUpperCase() + next.slice(1))}` : t('tLegAuto', { km: Store.settings.walkMaxKm })); } }, true);
+const kakaoTransitLink = (a, b) => `https://map.kakao.com/link/by/traffic/${encodeURIComponent(a.name)},${a.lat},${a.lng}/${encodeURIComponent(b.name)},${b.lat},${b.lng}`;
+function openTransitInfo(a, b) { $('#infoRoute').textContent = `${a.name} → ${b.name}`; $('#infoLink').href = kakaoTransitLink(a, b); $('#infoModal').classList.add('show'); }
+$('#infoClose').onclick = () => $('#infoModal').classList.remove('show');
+$('#infoModal').onclick = e => { if (e.target.id === 'infoModal') $('#infoModal').classList.remove('show'); };
+// walking threshold (synced per space)
+function syncThreshold() { const v = Store.settings.walkMaxKm; $('#walkMax').value = v; $('#walkMaxVal').textContent = fmtKm(v); $('#walkMax').style.setProperty('--p', ((v - .3) / (3 - .3) * 100) + '%'); }
+$('#walkMax').addEventListener('input', e => { const v = +e.target.value; $('#walkMaxVal').textContent = fmtKm(v); e.target.style.setProperty('--p', ((v - .3) / (3 - .3) * 100) + '%'); });
+$('#walkMax').addEventListener('change', e => Store.setSetting('walkMaxKm', Math.round(+e.target.value * 10) / 10));
+Store.on(() => { if (document.activeElement !== $('#walkMax')) syncThreshold(); });
+$('#tripMeta').addEventListener('click', e => {
   if (e.target.closest('#sortTime')) { Store.sortStopsByTime(); toast(t('tSorted')); }
   if (e.target.closest('#mapTimes')) { mapTimes = !mapTimes; localStorage.setItem('najune-maptime', mapTimes ? '1' : '0'); render(); } });
 

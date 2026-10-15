@@ -17,7 +17,7 @@ const MapView = (() => {
   function clear() { overlays.forEach(o => o.setMap(null)); lines.forEach(l => l.setMap(null)); overlays = []; lines = []; cancelAnimationFrame(anim); }
   function el(html, onClick) { const d = document.createElement('div'); d.innerHTML = html; const n = d.firstElementChild;
     if (onClick) { n.style.cursor = 'pointer'; n.addEventListener('click', e => { e.stopPropagation(); onClick(); }); } return n; }
-  function draw({ places, stops, labels = [], onPin }) {
+  function draw({ places, stops, modes, labels = [], onPin }) {
     clear(); const inTrip = new Set(stops.map(p => p.id));
     places.filter(p => !inTrip.has(p.id)).forEach(p => {
       const o = new kakao.maps.CustomOverlay({ position: LL(p.lat, p.lng), yAnchor: 1, zIndex: 2,
@@ -25,16 +25,19 @@ const MapView = (() => {
       o.setMap(map); overlays.push(o);
     });
     if (stops.length > 1) {
-      const path = stops.map(p => LL(p.lat, p.lng));
-      const under = new kakao.maps.Polyline({ path: [path[0]], strokeWeight: 8, strokeColor: '#FFFFFF', strokeOpacity: .9 });
-      const top = new kakao.maps.Polyline({ path: [path[0]], strokeWeight: 4, strokeColor: '#9B87D9', strokeOpacity: 1, strokeStyle: 'shortdash' });
-      under.setMap(map); top.setMap(map); lines.push(under, top);
+      // one polyline per leg: walk = dotted mint, car = solid lavender, transit = dashed pink
+      const STY = { walk: { c: '#5FB894', s: 'shortdot' }, car: { c: '#9B87D9', s: 'solid' }, transit: { c: '#E68AA6', s: 'dash' } };
+      const path = stops.map(p => LL(p.lat, p.lng)), segs = [];
+      for (let k = 0; k < path.length - 1; k++) { const st = STY[modes?.[k]] || STY.car;
+        const under = new kakao.maps.Polyline({ path: [path[k]], strokeWeight: 8, strokeColor: '#FFFFFF', strokeOpacity: .9 });
+        const top = new kakao.maps.Polyline({ path: [path[k]], strokeWeight: st.s === 'shortdot' ? 5 : 4, strokeColor: st.c, strokeOpacity: 1, strokeStyle: st.s });
+        under.setMap(map); top.setMap(map); lines.push(under, top); segs.push([under, top]); }
       // "draw-in" animation along the route
       const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches, dur = reduce ? 0 : 700, t0 = performance.now();
-      const step = now => { const k = dur ? Math.max(0, Math.min(1, (now - t0) / dur)) : 1, e = 1 - Math.pow(1 - k, 3), f = e * (path.length - 1), i = Math.floor(f);
-        const pts = path.slice(0, i + 1);
-        if (i < path.length - 1) { const a = path[i], b = path[i + 1], r = f - i; pts.push(LL(a.getLat() + (b.getLat() - a.getLat()) * r, a.getLng() + (b.getLng() - a.getLng()) * r)); }
-        under.setPath(pts); top.setPath(pts); if (k < 1) anim = requestAnimationFrame(step); };
+      const step = now => { const k = dur ? Math.max(0, Math.min(1, (now - t0) / dur)) : 1, e = 1 - Math.pow(1 - k, 3), f = e * (path.length - 1);
+        segs.forEach(([u, tp], s) => { const r = Math.max(0, Math.min(1, f - s)), a = path[s], b = path[s + 1];
+          const pts = r <= 0 ? [a, a] : [a, LL(a.getLat() + (b.getLat() - a.getLat()) * r, a.getLng() + (b.getLng() - a.getLng()) * r)]; u.setPath(pts); tp.setPath(pts); });
+        if (k < 1) anim = requestAnimationFrame(step); };
       anim = requestAnimationFrame(step);
     }
     stops.forEach((p, i) => { const o = new kakao.maps.CustomOverlay({ position: LL(p.lat, p.lng), zIndex: 5,
