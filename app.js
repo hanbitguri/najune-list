@@ -408,24 +408,20 @@ if ('serviceWorker' in navigator && location.protocol !== 'file:') {
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') navigator.serviceWorker.getRegistration().then(r => r?.update()).catch(() => {}); });
 }
 
-// 🥚 easter egg: tap the bear 3 · 1 · 6 ("316") → purple heart shower
+// 🥚 easter egg: tap the bear 10 times (each gap < 1.5s) → purple heart shower
 (() => {
   const bear = $('#bear'); if (!bear) return;
-  const QUICK = 550, PAUSE_MIN = 600, PAUSE_MAX = 2500, IDLE = 3000, TARGET = [3, 1, 6];
-  let taps = [], idle = 0;
-  const groups = () => { const g = []; let n = 0; taps.forEach((tm, i) => { if (i && tm - taps[i - 1] > QUICK) { g.push(n); n = 0; } n++; }); g.push(n); return g; };
-  const pausesOk = () => taps.every((tm, i) => !i || (tm - taps[i - 1]) <= QUICK || (tm - taps[i - 1]) >= PAUSE_MIN);   // 550–600ms dead zone = ambiguous → no match
+  const GAP = 1500, COUNT = 10;
+  let n = 0, last = 0;
   bear.addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); });
   bear.addEventListener('click', e => { e.preventDefault(); e.stopPropagation(); });
   bear.addEventListener('pointerup', e => {
     e.preventDefault(); e.stopPropagation();
     const now = performance.now();
-    if (taps.length && now - taps[taps.length - 1] > PAUSE_MAX) taps = [];          // too long → start over
-    taps.push(now); bear.classList.remove('boop'); void bear.offsetWidth; bear.classList.add('boop');
-    clearTimeout(idle); idle = setTimeout(() => taps = [], IDLE);
-    const g = groups();
-    if (g.length > 3 || g.some((n, i) => i < g.length - 1 ? n !== TARGET[i] : n > TARGET[i])) return;   // can't match any more; wait for reset
-    if (g.length === 3 && g[2] === 6 && g[0] === 3 && g[1] === 1 && pausesOk()) { taps = []; clearTimeout(idle); hearts(); }
+    if (now - last > GAP) n = 0;                       // idle too long → start over
+    last = now; n++;
+    bear.classList.remove('boop'); void bear.offsetWidth; bear.classList.add('boop');
+    if (n >= COUNT) { n = 0; last = 0; hearts(); }
   });
   function hearts() {
     try { navigator.vibrate?.([10, 40, 10]); } catch {}
