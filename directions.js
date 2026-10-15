@@ -1,6 +1,6 @@
 /* Travel time between stops.
    Car  : Kakao Mobility Directions API (real road time) when a REST key is set on this device.
-          Without a key → estimate (straight line × 1.4 at 25 km/h), labelled 예상.
+          Without a key → estimate (straight line × 1.35 at 15 km/h + 4 min), labelled 예상.
    Walk : Kakao has no public walking API → always an estimate (straight line × 1.25 at 4.5 km/h).
    The REST key is NOT in the public repo; it is entered per device (공유 tab) and kept in localStorage. */
 const DIRECTIONS_PROXY = ''; // optional Edge Function URL (see supabase/functions/directions); empty = call Kakao directly
@@ -15,7 +15,7 @@ const Directions = (() => {
     get key() { return localStorage.getItem(KEY_LS) || ''; },
     setKey(k) { k ? localStorage.setItem(KEY_LS, k.trim()) : localStorage.removeItem(KEY_LS); },
     walk(km) { const d = km * 1.25; return { sec: d / 4.5 * 3600, km: d, est: true }; },
-    carEstimate(km) { const d = km * 1.4; return { sec: d / 25 * 3600 + 120, km: d, est: true }; },
+    carEstimate(km) { const d = km * 1.35; return { sec: d / 15 * 3600 + 240, km: d, est: true }; },  // Seoul city traffic: ~15 km/h + 4 min parking/lights
     cachedCar(a, b) { const c = cache[ck(a, b)]; return c && Date.now() - c.ts < 7 * 864e5 ? c : null; },
     async car(a, b) {
       const k = ck(a, b), hit = this.cachedCar(a, b); if (hit) return hit;

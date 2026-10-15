@@ -309,7 +309,7 @@ $('#copyLink').onclick = async () => { const l = Space.link();
   try { if (navigator.share) await navigator.share({ title: t('appName'), url: l }); else { await navigator.clipboard.writeText(l); toast(t('tCopied')); } } catch {} };
 $('#restKey').value = Directions.key ? '••••••••' + Directions.key.slice(-4) : '';
 $('#saveKey').onclick = () => { const v = $('#restKey').value.trim(); if (v.startsWith('••')) return; Directions.setKey(v); keyWarned = false; toast(v ? t('tKeySaved') : t('tKeyCleared')); render(); };
-adapter.onNotice(k => { $('#syncMode').textContent = t(k); const b = $('#noticeBanner'); b.textContent = 'ℹ️ ' + t(k); b.dataset.k = k; b.classList.add('show'); setTimeout(() => b.classList.remove('show'), 10000); });
+adapter.onNotice(k => { $('#syncMode').textContent = t(k); const b = $('#noticeBanner'); b.textContent = 'ℹ️ ' + t(k); b.dataset.k = k; b.classList.add('show'); if (k !== 'noticeNoV2') setTimeout(() => b.classList.remove('show'), 10000); });  // missing-table notice stays until tapped
 $('#noticeBanner').onclick = () => $('#noticeBanner').classList.remove('show');
 $('#banner').onclick = () => $('#banner').classList.remove('show');
 Store.on((s, remote) => { if (remote) toast(t('tRemote')); });
