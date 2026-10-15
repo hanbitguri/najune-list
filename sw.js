@@ -1,4 +1,4 @@
-const C='najune-v14';const A=['./','index.html','styles.css?v=14','app.js?v=14','i18n.js?v=14','map.js?v=14','directions.js?v=14','store.js?v=14','manifest.json','icon.svg','apple-touch-icon.png'];
+const C='najune-v15';const A=['./','index.html','styles.css?v=15','app.js?v=15','i18n.js?v=15','map.js?v=15','directions.js?v=15','store.js?v=15','manifest.json','icon.svg','apple-touch-icon.png'];
 // new versions take over immediately (home-screen PWAs are rarely fully closed) and old caches are removed
 self.addEventListener('install',e=>{self.skipWaiting();e.waitUntil(caches.open(C).then(c=>c.addAll(A)));});
 self.addEventListener('activate',e=>e.waitUntil(caches.keys().then(ks=>Promise.all(ks.filter(k=>k!==C).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));

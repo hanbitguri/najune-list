@@ -29,7 +29,7 @@ function render() {
       ${thumbHtml(p)}
       <div class="body" data-act="edit"><h4>${esc(p.name)}</h4>
         <p><span class="badge" style="background:${STATUS[p.status].color}">${STATUS[p.status].label}</span>${esc([won(p.cost), p.memo, p.addedBy && t('by',{name:p.addedBy})].filter(Boolean).join(' · '))}</p></div>
-      <button class="iconbtn heart ${p.heart?'on':''}" data-act="heart" aria-label="${t('heart')}">${p.heart?'💗':'🤍'}</button>
+      <button class="iconbtn heart ${p.heart?'on':''}" data-act="heart" aria-label="${t('heart')}">${p.heart?'💟':'🤍'}</button>
       <a class="iconbtn" href="${kakaoLink(p)}" target="_blank" rel="noopener" aria-label="${t('openKakao')}" title="${t('openKakao')}">🧭</a>
       <button class="iconbtn" data-act="stop" aria-label="${t('addToTrip')}">＋</button>
     </li>`).join('') : `<p class="hint">${t('emptyPlaces')}</p>`;
