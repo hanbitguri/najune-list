@@ -84,7 +84,16 @@ const ItinParse = (() => {
   $('#pasteBack').onclick = () => step(1);
   const dkm = (a, b) => { const R = 6371, r = x => x * Math.PI / 180, dl = r(b.lat - a.lat), dg = r(b.lng - a.lng);
     return 2 * R * Math.asin(Math.sqrt(Math.sin(dl / 2) ** 2 + Math.cos(r(a.lat)) * Math.cos(r(b.lat)) * Math.sin(dg / 2) ** 2)); };
+  // common JA spellings of popular spots → Korean names Kakao understands
+  const JA = { '景福宮':'경복궁','昌徳宮':'창덕궁','広蔵市場':'광장시장','明洞':'명동','南大門市場':'남대문시장','東大門':'동대문','弘大':'홍대','梨泰院':'이태원','江南':'강남','狎鴎亭':'압구정','カロスキル':'가로수길',
+    '北村韓屋村':'북촌한옥마을','益善洞':'익선동','仁寺洞':'인사동','三清洞':'삼청동','聖水':'성수','聖水洞':'성수동','ソウルの森':'서울숲','汝矣島':'여의도','漢江公園':'한강공원','ロッテワールド':'롯데월드',
+    'Nソウルタワー':'남산서울타워','Ｎソウルタワー':'남산서울타워','南山タワー':'남산서울타워','ソウルタワー':'남산서울타워','清渓川':'청계천','望遠市場':'망원시장','延南洞':'연남동','乙支路':'을지로',
+    '海雲台':'해운대','海雲台ビーチ':'해운대해수욕장','広安里':'광안리','広安里ビーチ':'광안리해수욕장','甘川文化村':'감천문화마을','チャガルチ市場':'자갈치시장','南浦洞':'남포동','釜山駅':'부산역','ソウル駅':'서울역',
+    '済州空港':'제주국제공항','城山日出峰':'성산일출봉','明洞聖堂':'명동성당','東大門デザインプラザ':'동대문디자인플라자','DDP':'동대문디자인플라자','ロッテタワー':'롯데월드타워' };
+  const jaKo = q => { if (/[가-힣]/.test(q) || !/[\u3040-\u30ff\u4e00-\u9fff]/.test(q)) return q;
+    let x = q; Object.keys(JA).sort((a, b) => b.length - a.length).forEach(k => { x = x.split(k).join(' ' + JA[k] + ' '); }); return x.replace(/\s+/g, ' ').trim(); };
   async function find(q, near) {
+    q = jaKo(q);
     const words = q.split(' '); const tries = [q];
     if (words.length > 1) { tries.push(words.slice(0, -1).join(' ')); tries.push(words[0]); }
     for (const x of [...new Set(tries)].filter(x => x.length >= 2)) {
