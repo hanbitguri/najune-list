@@ -231,7 +231,7 @@ a.iconbtn{display:grid;place-items:center;text-decoration:none}
 @media (prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}}
 
 /* 📋 paste itinerary */
-.pastebtn{width:100%;margin-top:12px;background:linear-gradient(135deg,var(--butter),#FBEFD0);animation:rise .5s var(--ease) both}
+.pastebtn{width:100%;margin:8px 0 4px;height:36px;font-size:13px;background:linear-gradient(135deg,var(--butter),#FBEFD0);animation:rise .5s var(--ease) both}
 .btn.butter{background:var(--butter)}
 .paste-card{display:flex;flex-direction:column;max-height:90vh}
 .paste-head{display:flex;align-items:center;justify-content:space-between;gap:8px}
