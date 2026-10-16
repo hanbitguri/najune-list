@@ -266,3 +266,13 @@ a.iconbtn{display:grid;place-items:center;text-decoration:none}
 .ptarget select{height:44px;border:0;border-radius:var(--r2);background:var(--b2);padding:0 12px;font:inherit;font-size:15px;color:var(--ink)}
 
 .legtxt em.far{background:#FBE3D6;color:#A05A3C;margin-left:4px}
+
+/* auto times */
+.timechip.auto{background:transparent;box-shadow:inset 0 0 0 1px var(--line);color:var(--sub);font-weight:500}
+.timechip.auto small{font-size:9px;margin-left:3px;opacity:.8}.timechip sup{font-size:8px;margin-left:1px}
+.timechip{transition:transform .3s var(--spring),background .3s,color .3s,box-shadow .3s}
+.staychip{border:0;background:var(--b1);border-radius:9px;font:500 11px var(--font);color:var(--sub);padding:1px 7px;margin-right:4px;cursor:pointer}
+.tight{display:inline-block;background:#FDE6D8;color:#A2573A;border-radius:9px;font-size:11px;padding:1px 7px;margin-right:4px;animation:fade .4s var(--ease)}
+.autohint{display:block;margin-top:4px;color:var(--sub);font-size:11px}
+.staysel{height:44px;border:0;border-radius:var(--r2);background:var(--b2);padding:0 12px;font:inherit;font-size:16px;color:var(--ink)}
+.item.swap .timechip.auto{animation:fade .35s var(--ease)}

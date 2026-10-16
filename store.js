@@ -227,7 +227,7 @@ const Store = (() => {
     updateTrip(id, patch) { const tr = state.trips.find(x => x.id === id); if (!tr) return; Object.assign(tr, patch); if (!tr.date) delete tr.date; commit(); },
     removeTrip(id) { state.trips = state.trips.filter(x => x.id !== id); fixActive(); this.setActiveTrip(state.activeTripId, true); commit(); },
     setStopMeta(pid, patch) { const tr = this.activeTrip(); if (!tr) return; tr.meta = tr.meta || {}; const m = { ...(tr.meta[pid] || {}), ...patch };
-      Object.keys(m).forEach(k => { if (!m[k]) delete m[k]; }); if (Object.keys(m).length) tr.meta[pid] = m; else delete tr.meta[pid]; commit(); },
+      Object.keys(m).forEach(k => { if (m[k] == null || m[k] === '' || (k !== 'stay' && !m[k])) delete m[k]; }); if (Object.keys(m).length) tr.meta[pid] = m; else delete tr.meta[pid]; commit(); },
     // space-wide settings (synced) & per-leg travel mode overrides (synced in the trip)
     get settings() { return { walkMaxKm: 1.2, ...(state.settings || {}) }; },
     setSetting(k, v) { state.settings = { ...(state.settings || {}), [k]: v }; commit(); },

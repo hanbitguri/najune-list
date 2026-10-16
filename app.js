@@ -61,13 +61,14 @@ function render() {
   $('#tripPick').innerHTML = trip ? `<span><b>${esc(trip.name)}</b>${trip.date ? `<small>${fmtDate(trip.date)}</small>` : ''}</span><i class="chev" aria-hidden="true"><svg viewBox="0 0 16 16" width="16" height="16"><path d="M4 6l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></i>` : `<span><b>${t('noTrips')}</b></span><i class="chev" aria-hidden="true"><svg viewBox="0 0 16 16" width="16" height="16"><path d="M4 6l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></i>`;
   $('#editTrip').style.display = trip ? '' : 'none';
   const stops = trip ? trip.stops.map(id => s.places.find(p => p.id === id)).filter(Boolean) : [];
-  const meta = trip?.meta || {}; let cost = 0; const rows = [];
+  const meta = trip?.meta || {}; let cost = 0; const rows = []; const TT = computeTimes(stops, meta);
   stops.forEach((p, i) => {
     if (i) rows.push({ key: 'leg:' + stops[i-1].id + '>' + p.id, html: `<li class="leg" data-leg="${i}" data-k="${stops[i-1].id}>${p.id}">${legText(stops[i-1], p).html}</li>` });
     cost += +p.cost || 0; const m = meta[p.id] || {};
     rows.push({ key: 'stop:' + p.id, html: `<li class="item" data-id="${p.id}" data-idx="${i}">
-      <div class="num">${i+1}</div><div class="body" data-act="fly"><h4>${cat(p.category).emoji} ${esc(p.name)}</h4><p>${esc(m.note || won(p.cost) || p.memo || '')}</p></div>
-      <button class="timechip ${m.time ? 'set' : ''}" data-act="meta" aria-label="${t('time')}">${m.time ? esc(m.time) : '＋ ' + t('time')}</button>
+      <div class="num">${i+1}</div><div class="body" data-act="fly"><h4>${cat(p.category).emoji} ${esc(p.name)}</h4>
+        <p>${TT[i].tight ? `<span class="tight">⚠︎ ${t('tight')}</span>` : ''}<button type="button" class="staychip" data-act="meta">⏳ ${TT[i].stay ? t('stayChip', { d: fmtDur(TT[i].stay * 60) }) : p.category === 'stay' ? t('stayNight') : t('stayNone')}</button>${esc(m.note || won(p.cost) || p.memo || '')}</p></div>
+      <button class="timechip ${TT[i].pinned ? 'set' : TT[i].time ? 'auto' : ''}" data-act="meta" aria-label="${t('time')}">${TT[i].pinned ? '📌 ' + esc(TT[i].time) : TT[i].time ? `${esc(TT[i].time)}${TT[i].day ? `<sup>+${TT[i].day}</sup>` : ''}<small>${t('mAuto')}</small>` : '＋ ' + t('time')}</button>
       <a class="iconbtn" href="${kakaoLink(p)}" target="_blank" rel="noopener" aria-label="${t('openKakao')}">🧭</a>
       <button class="iconbtn" data-act="unstop" aria-label="${t('removeStop')}">✕</button><span class="handle" aria-label="${t('reorder')}">☰</span></li>` });
   });
@@ -82,7 +83,7 @@ function render() {
 
   // map
   s.places.forEach(p => { Object.defineProperty(p, '_color', { value: cat(p.category).color, configurable: true }); Object.defineProperty(p, '_emoji', { value: cat(p.category).emoji, configurable: true }); });
-  MapView.draw({ places: s.places, stops, modes: stops.slice(1).map((b, i) => legMode(stops[i], b).mode), labels: stops.map(p => mapTimes ? meta[p.id]?.time || '' : ''), onPin: p => { MapView.flyTo(p.lat, p.lng); openForm(p); } });
+  MapView.draw({ places: s.places, stops, modes: stops.slice(1).map((b, i) => legMode(stops[i], b).mode), labels: stops.map((p, i) => mapTimes ? TT[i].time || '' : ''), onPin: p => { MapView.flyTo(p.lat, p.lng); openForm(p); } });
   if (!fitted && s.places.length) { fitted = true; const mob = innerWidth < 900;
     MapView.fit(stops.length > 1 ? stops : s.places, mob ? [80, 24, 340, 24] : [96, 48, 48, 420]); }
 }
@@ -113,6 +114,20 @@ function legResult(a, b, mode) { const km = dist(a, b);
 function legText(a, b) { const { mode, auto } = legMode(a, b), r = legResult(a, b, mode);
   return { r, mode, html: `<button class="legmode m-${mode} ${auto ? 'auto' : ''}" data-cycle aria-label="${t('legModeTap')}" title="${t('legModeTap')}">${MODE_ICON[mode]}${auto ? `<small>${t('mAuto')}</small>` : ''}</button>
     <span class="legtxt">${fmtDur(r.sec)} · ${fmtKm(r.km)}${r.est ? `<em>${t('legEst')}</em>` : ''}${r.far ? `<em class="far">${t('walkFar')}</em>` : ''}</span>${mode === 'transit' ? `<button class="legInfo" data-info aria-label="${t('transitInfoTitle')}">ⓘ</button>` : ''}` }; }
+// auto schedule: pinned times (meta.time) are anchors; others = prev arrival + stay + leg estimate
+const STAY_DEFAULT = { food: 60, cafe: 45, sight: 90, stay: 0, curious: 45, etc: 30 };
+const stayOf = (p, m) => m && m.stay != null && m.stay !== '' ? +m.stay : (STAY_DEFAULT[p.category] ?? 30);
+const toMin = s => { const [h, m] = String(s).split(':').map(Number); return h * 60 + m; };
+const hhmm = n => { n = Math.round(n); const d = Math.floor(n / 1440), x = ((n % 1440) + 1440) % 1440; return [String(Math.floor(x / 60)).padStart(2, '0') + ':' + String(x % 60).padStart(2, '0'), d]; };
+function computeTimes(stops, meta) { let cur = null, base = 0;
+  return stops.map((p, i) => { const m = meta[p.id] || {}, stay = stayOf(p, m);
+    const arr = i && cur != null ? cur + legResult(stops[i - 1], p, legMode(stops[i - 1], p).mode).sec / 60 : null;
+    let at = null, pinned = false, tight = false;
+    if (m.time) { pinned = true; at = toMin(m.time); if (cur != null) { while (at + 1440 * base < cur - 720) base++; at += 1440 * base; } tight = arr != null && at < arr - 2; }
+    else if (arr != null) at = arr;
+    if (at != null) cur = at + stay;
+    const [time, day] = at != null ? hhmm(at) : ['', 0];
+    return { time, day, pinned, tight, stay, auto: !pinned && at != null }; }); }
 function updateTotals(stops) { const el = $('#tripTotals'); if (!el) return;
   let sec = 0, km = 0, est = false; for (let i = 1; i < stops.length; i++) { const { r } = legText(stops[i-1], stops[i]); sec += r.sec; km += r.km; est ||= r.est; }
   el.innerHTML = t('tripTotal', { n: stops.length, time: stops.length > 1 ? fmtDur(sec) : '–', d: fmtKm(km) }) + (est && stops.length > 1 ? `<em>${t('legEst')}</em>` : '') + (tripCost ? t('tripCost', { c: won(tripCost) }) : ''); }
@@ -176,11 +191,16 @@ $('#tripForm').onsubmit = e => { e.preventDefault(); const f = e.target, v = f.n
 let editingStop = null;
 function openStop(p, idx) { editingStop = p; const m = Store.activeTrip()?.meta?.[p.id] || {}, f = $('#stopForm');
   $('#stopTitle').textContent = `${idx + 1}. ${p.name}`; f.time.value = m.time || ''; f.note.value = m.note || '';
+  const tr = Store.activeTrip(), stops = tr.stops.map(id => Store.get().places.find(x => x.id === id)).filter(Boolean), TT = computeTimes(stops, tr.meta || {}), k = stops.indexOf(p);
+  $('#autoHint').textContent = TT[k]?.auto ? t('autoHint', { t: TT[k].time }) : TT[k]?.pinned ? t('pinHint') : t('noAnchor');
+  const def = STAY_DEFAULT[p.category] ?? 30, opts = [0, 15, 30, 45, 60, 90, 120, 150, 180, 240];
+  f.stay.innerHTML = `<option value="">${t('stayDefault', { d: def ? fmtDur(def * 60) : t('stayNone') })}</option>` + opts.map(v => `<option value="${v}">${v ? fmtDur(v * 60) : t('stayNone')}</option>`).join('');
+  f.stay.value = m.stay != null && m.stay !== '' ? String(m.stay) : '';
   $('#stopModal').classList.add('show'); }
 const closeStop = () => $('#stopModal').classList.remove('show');
 $('#cancelStop').onclick = closeStop; $('#stopModal').onclick = e => { if (e.target.id === 'stopModal') closeStop(); };
 $('#clearTime').onclick = () => { $('#stopForm').time.value = ''; };
-$('#stopForm').onsubmit = e => { e.preventDefault(); const f = e.target; Store.setStopMeta(editingStop.id, { time: f.time.value, note: f.note.value.trim() }); closeStop(); };
+$('#stopForm').onsubmit = e => { e.preventDefault(); const f = e.target; Store.setStopMeta(editingStop.id, { time: f.time.value, note: f.note.value.trim(), stay: f.stay.value === '' ? null : +f.stay.value }); closeStop(); };
 $('#me').onchange = e => Store.setMe(e.target.value.trim());
 
 // tabs
