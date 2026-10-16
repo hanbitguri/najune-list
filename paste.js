@@ -121,7 +121,7 @@ const ItinParse = (() => {
       <input class="ptime" type="time" value="${r.time || ''}" aria-label="${t('time')}">
       <div class="pbody">
         <small class="praw">${esc(r.raw)}</small>
-        ${c ? `<div class="pmatch"><b>${cat(c.category).emoji} ${esc(c.name)}</b>${ex ? `<em>${t('pasteExisting')}</em>` : ''}<small>${esc(c.address || '')}${c.sub ? ' · ' + esc(c.sub.split(' > ').at(-1)) : ''}</small></div>`
+        ${c ? `<div class="pmatch"><b>${cat(c.category).emoji} ${esc(c.name)}</b>${ex ? `<em>${t('pasteExisting')}${LANG === 'ja' && ex.nameJa ? ' · ' + esc(ex.nameJa) : ''}</em>` : ''}<small>${esc(c.address || '')}${c.sub ? ' · ' + esc(c.sub.split(' > ').at(-1)) : ''}</small></div>`
               : `<div class="pmatch miss">${t('pasteNoMatch')}</div>`}
         <div class="pctl">
           ${r.cands.length > 1 ? `<label class="psel">${t('pasteOthers')}<select>${r.cands.map((x, i) => `<option value="${i}" ${i === r.pick ? 'selected' : ''}>${esc(x.name)} · ${esc((x.address || '').split(' ').slice(0, 3).join(' '))}</option>`).join('')}</select></label>` : ''}

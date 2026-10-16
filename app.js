@@ -4,6 +4,7 @@ function rebuildCats() { CATS = {}; (Store.get().categories || DEFAULT_CATS).for
 const cat = id => CATS[id] || CATS.etc || { emoji: '📍', color: '#F3EDE3', label: '' };
 const STATUS = { wish:{get label(){return t('stWish')},color:'#F7C6D0'}, planned:{get label(){return t('stPlanned')},color:'#D9CFF3'}, done:{get label(){return t('stDone')},color:'#BFE6D6'} };
 const $ = s => document.querySelector(s);
+const pname = p => (typeof LANG !== 'undefined' && LANG === 'ja' && p?.nameJa) ? p.nameJa : (p?.name || '');
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const won = n => n ? t('won',{n:Number(n).toLocaleString(LANG)}) : '';
 function dist(a, b) { const R=6371, r=x=>x*Math.PI/180, dLa=r(b.lat-a.lat), dLo=r(b.lng-a.lng);
@@ -50,7 +51,7 @@ function render() {
   patchList($('#placeList'), shown.map(p => ({ key: p.id, html: `
     <li class="item" data-id="${p.id}">
       ${thumbHtml(p)}
-      <div class="body" data-act="edit"><h4>${esc(p.name)}</h4>
+      <div class="body" data-act="edit"><h4>${esc(pname(p))}</h4>
         <p><span class="badge" style="background:${STATUS[p.status].color}">${STATUS[p.status].label}</span>${esc([won(p.cost), p.memo, p.addedBy && t('by',{name:p.addedBy})].filter(Boolean).join(' · '))}</p></div>
       <button class="iconbtn heart ${p.heart?'on':''}" data-act="heart" aria-label="${t('heart')}">${p.heart?'💟':'🤍'}</button>
       <a class="iconbtn" href="${kakaoLink(p)}" target="_blank" rel="noopener" aria-label="${t('openKakao')}" title="${t('openKakao')}">🧭</a>
@@ -66,7 +67,7 @@ function render() {
     if (i) rows.push({ key: 'leg:' + stops[i-1].id + '>' + p.id, html: `<li class="leg" data-leg="${i}" data-k="${stops[i-1].id}>${p.id}">${legText(stops[i-1], p).html}</li>` });
     cost += +p.cost || 0; const m = meta[p.id] || {};
     rows.push({ key: 'stop:' + p.id, html: `<li class="item" data-id="${p.id}" data-idx="${i}">
-      <div class="num">${i+1}</div><div class="body" data-act="fly"><h4>${cat(p.category).emoji} ${esc(p.name)}</h4>
+      <div class="num">${i+1}</div><div class="body" data-act="fly"><h4>${cat(p.category).emoji} ${esc(pname(p))}</h4>
         <p>${TT[i].tight ? `<span class="tight">⚠︎ ${t('tight')}</span>` : ''}<button type="button" class="staychip" data-act="meta">⏳ ${TT[i].stay ? t('stayChip', { d: fmtDur(TT[i].stay * 60) }) : p.category === 'stay' ? t('stayNight') : t('stayNone')}</button>${esc(m.note || won(p.cost) || p.memo || '')}</p></div>
       <button class="timechip ${TT[i].pinned ? 'set' : TT[i].time ? 'auto' : ''}" data-act="meta" aria-label="${t('time')}">${TT[i].pinned ? '📌 ' + esc(TT[i].time) : TT[i].time ? `${esc(TT[i].time)}${TT[i].day ? `<sup>+${TT[i].day}</sup>` : ''}<small>${t('mAuto')}</small>` : '＋ ' + t('time')}</button>
       <a class="iconbtn" href="${kakaoLink(p)}" target="_blank" rel="noopener" aria-label="${t('openKakao')}">🧭</a>
@@ -95,7 +96,7 @@ $('#placeList').onclick = e => {
   const li = e.target.closest('.item'); if (!li) return; const id = li.dataset.id, act = e.target.closest('[data-act]')?.dataset.act;
   const p = Store.get().places.find(x => x.id === id);
   if (act === 'heart') Store.updatePlace(id, { heart: !p.heart });
-  else if (act === 'stop') { Store.addStop(id); toast(t('tAdded',{name:p.name})); }
+  else if (act === 'stop') { Store.addStop(id); toast(t('tAdded',{name:pname(p)})); }
   else { MapView.flyTo(p.lat, p.lng); if (act==='edit') openForm(p); }
 };
 $('#stopList').onclick = e => {
@@ -190,7 +191,7 @@ $('#tripForm').onsubmit = e => { e.preventDefault(); const f = e.target, v = f.n
 // stop sheet (time + note)
 let editingStop = null;
 function openStop(p, idx) { editingStop = p; const m = Store.activeTrip()?.meta?.[p.id] || {}, f = $('#stopForm');
-  $('#stopTitle').textContent = `${idx + 1}. ${p.name}`; f.time.value = m.time || ''; f.note.value = m.note || '';
+  $('#stopTitle').textContent = `${idx + 1}. ${pname(p)}`; f.time.value = m.time || ''; f.note.value = m.note || '';
   const tr = Store.activeTrip(), stops = tr.stops.map(id => Store.get().places.find(x => x.id === id)).filter(Boolean), TT = computeTimes(stops, tr.meta || {}), k = stops.indexOf(p);
   $('#autoHint').textContent = TT[k]?.auto ? t('autoHint', { t: TT[k].time }) : TT[k]?.pinned ? t('pinHint') : t('noAnchor');
   const def = STAY_DEFAULT[p.category] ?? 30, opts = [0, 15, 30, 45, 60, 90, 120, 150, 180, 240];
@@ -353,7 +354,7 @@ function seg(el, obj, val) { el.innerHTML = Object.entries(obj).map(([k,v]) => `
   el.onclick = e => { const b = e.target.closest('button'); if (!b) return; el.querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b)); el.dataset.v = b.dataset.v; }; el.dataset.v = val; }
 function openForm(p, draft) {
   editing = p; pending = draft; const f = $('#placeForm'), d = p || draft;
-  $('#formTitle').textContent = p ? t('editPlace') : t('addPlace'); f.name.value = d.name || ''; f.cost.value = p?.cost || ''; f.memo.value = p?.memo || '';
+  $('#formTitle').textContent = p ? t('editPlace') : t('addPlace'); f.name.value = d.name || ''; f.nameJa.value = d.nameJa || ''; f.cost.value = p?.cost || ''; f.memo.value = p?.memo || '';
   rebuildCats(); seg($('#catSeg'), CATS, CATS[d.category] ? d.category : 'etc'); thumbDraft = p ? (p.thumb || '') : (d.thumb || ''); showThumb(); seg($('#statusSeg'), STATUS, p?.status || 'wish');
   $('#delPlace').style.display = p ? '' : 'none'; $('#kakaoLink').href = kakaoLink(d); $('#kakaoLink').style.display = d.lat ? '' : 'none'; $('#modal').classList.add('show');
 }
@@ -361,7 +362,7 @@ const closeForm = () => $('#modal').classList.remove('show');
 $('#cancelForm').onclick = closeForm; $('#modal').onclick = e => { if (e.target.id === 'modal') closeForm(); };
 $('#delPlace').onclick = () => { if (editing && confirm(t('cDelete'))) { Store.removePlace(editing.id); closeForm(); } };
 $('#placeForm').onsubmit = e => { e.preventDefault(); const f = e.target;
-  const v = { name: f.name.value.trim(), cost: +f.cost.value || 0, memo: f.memo.value.trim(), category: $('#catSeg').dataset.v, status: $('#statusSeg').dataset.v, thumb: thumbDraft || '' };
+  const v = { name: f.name.value.trim(), nameJa: f.nameJa.value.trim(), cost: +f.cost.value || 0, memo: f.memo.value.trim(), category: $('#catSeg').dataset.v, status: $('#statusSeg').dataset.v, thumb: thumbDraft || '' };
   if (editing) Store.updatePlace(editing.id, v); else { Store.addPlace({ ...pending, ...v }); toast(t('tPinned')); }
   closeForm(); };
 
