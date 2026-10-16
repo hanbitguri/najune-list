@@ -112,7 +112,7 @@ function legResult(a, b, mode) { const km = dist(a, b);
   return mode === 'walk' ? Directions.walk(km) : mode === 'transit' ? Directions.transit(km) : Directions.carEstimate(km); }
 function legText(a, b) { const { mode, auto } = legMode(a, b), r = legResult(a, b, mode);
   return { r, mode, html: `<button class="legmode m-${mode} ${auto ? 'auto' : ''}" data-cycle aria-label="${t('legModeTap')}" title="${t('legModeTap')}">${MODE_ICON[mode]}${auto ? `<small>${t('mAuto')}</small>` : ''}</button>
-    <span class="legtxt">${fmtDur(r.sec)} · ${fmtKm(r.km)}${r.est ? `<em>${t('legEst')}</em>` : ''}</span>${mode === 'transit' ? `<button class="legInfo" data-info aria-label="${t('transitInfoTitle')}">ⓘ</button>` : ''}` }; }
+    <span class="legtxt">${fmtDur(r.sec)} · ${fmtKm(r.km)}${r.est ? `<em>${t('legEst')}</em>` : ''}${r.far ? `<em class="far">${t('walkFar')}</em>` : ''}</span>${mode === 'transit' ? `<button class="legInfo" data-info aria-label="${t('transitInfoTitle')}">ⓘ</button>` : ''}` }; }
 function updateTotals(stops) { const el = $('#tripTotals'); if (!el) return;
   let sec = 0, km = 0, est = false; for (let i = 1; i < stops.length; i++) { const { r } = legText(stops[i-1], stops[i]); sec += r.sec; km += r.km; est ||= r.est; }
   el.innerHTML = t('tripTotal', { n: stops.length, time: stops.length > 1 ? fmtDur(sec) : '–', d: fmtKm(km) }) + (est && stops.length > 1 ? `<em>${t('legEst')}</em>` : '') + (tripCost ? t('tripCost', { c: won(tripCost) }) : ''); }

@@ -1,6 +1,7 @@
 /* UI strings. Synced data (place names, memos, trip names) is never translated. */
 const I18N = {
   ko: {
+    walkFar:'멀어요 · 차/대중교통 추천',
     pasteBtn:'📋 글로 일정 만들기', pasteTitle:'글로 일정 만들기', pasteHint:'블로그나 카톡에 적어둔 일정을 그대로 붙여넣어 주세요. 시간과 장소를 찾아 정리해 드려요.',
     pastePh:'1일차\n10:30 경복궁 (한복 대여)\n점심 - 광장시장 빈대떡\n오후 3시 북촌한옥마을 → 익선동 카페\n저녁 7시 남산서울타워 야경',
     pasteAnalyze:'장소 찾기', pasteFinding:'찾는 중… {n}/{m}', pasteReviewHint:'맞게 찾았는지 확인해 주세요. 후보를 바꾸거나 검색어를 고치고, 필요 없는 줄은 체크를 꺼요.',
@@ -33,6 +34,7 @@ const I18N = {
     openKakao:'카카오맵에서 열기', time:"시간", note:"메모", notePh:"예: 예약 12:20", clearTime:"지우기", modeWalk:"🚶 도보", modeCar:"🚗 차", legEst:" 예상", min:"{m}분", hmin:"{h}시간 {m}분", hour:"{h}시간", tripTotal:"{n}곳 · 이동 {time} · {d}", sortByTime:"⏱ 시간순", tSorted:"시간순으로 정렬했어요", mapTimes:"🕒 지도에 시간", editTrip:"일정 편집", tripDate:"날짜", deleteTrip:"일정 삭제", cDeleteTrip:"\"{name}\" 일정을 지울까요? 장소는 그대로 남아요.", pickTrip:"일정 선택", noDate:"날짜 없음", nPlaces:"{n}곳", restKey:"Kakao REST 키 (차 이동시간용)", restKeyHint:"이 기기에만 저장돼요. 키가 없으면 차 이동시간도 예상치로 보여요. 도보는 항상 예상치예요.", restKeyPh:"REST API 키", tKeySaved:"키를 저장했어요", tKeyCleared:"키를 지웠어요", tKeyBad:"REST 키가 거부됐어요. 키와 카카오모빌리티 사용 설정을 확인해 주세요", noticeNoV2:"항목별 동기화(v2) 테이블이 아직 없어서 예전 방식으로 동기화해요. supabase-v2.sql을 실행하면 동시에 고쳐도 안전해져요.", noticeMigrated:"기존 목록을 항목별 동기화로 옮겼어요 ✨", syncV2:"항목별 동기화 사용 중 (같이 고쳐도 서로 덮어쓰지 않아요)", catCurious:'궁금한 곳', mWalk:'도보', mCar:'차', mTransit:'대중교통', mAuto:'자동', legModeTap:'눌러서 이동수단 바꾸기', tLegAuto:'자동 ({km}km 이하는 도보)', transitInfoTitle:'대중교통 시간 안내', transitInfo:'대중교통 시간은 거리 기반 추정치예요. 실제 시간은 카카오맵에서 확인하세요.', openTransit:'🚇 카카오맵 대중교통 길찾기', walkMax:'자동 모드: 이 거리까지는 도보', walkMaxHint:'더 먼 구간은 차로 계산해요. 두 사람 모두에게 똑같이 적용돼요.', manageCats:'카테고리 관리', catHint:'이모지·이름·색을 바꾸고 화살표로 순서를 바꿔요. 지운 카테고리의 장소는 기타로 옮겨져요.', addCat:'+ 카테고리 추가', done:'완료', newCat:'새 카테고리', catNamePh:'카테고리 이름', moveUp:'위로', moveDown:'아래로', cDeleteCat:'"{name}" 카테고리를 지울까요? 이 카테고리의 장소는 기타로 옮겨져요.', photo:'사진', photoUpload:'사진 올리기', photoRemove:'지우기', photoUrlPh:'이미지 주소 (https://…)', tPhotoFail:'이미지를 불러오지 못했어요', errMap:'카카오 지도를 불러오지 못했어요. 도메인 등록이나 지도 사용 설정을 확인해 주세요. 목록과 동기화는 그대로 쓸 수 있어요.',
   },
   ja: {
+    walkFar:'遠いです · 車/公共交通がおすすめ',
     pasteBtn:'📋 テキストからプラン作成', pasteTitle:'テキストからプラン作成', pasteHint:'ブログやメッセージに書いたプランをそのまま貼り付けてください。時間とスポットを見つけて整理します。',
     pastePh:'1日目\n10:30 景福宮（韓服レンタル）\nランチ - 広蔵市場\n午後3時 北村韓屋村 → 益善洞カフェ\n夜7時 Nソウルタワー',
     pasteAnalyze:'スポットを探す', pasteFinding:'検索中… {n}/{m}', pasteReviewHint:'正しく見つかったか確認してください。候補や検索ワードを変えたり、不要な行はチェックを外せます。',

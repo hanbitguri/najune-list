@@ -264,3 +264,5 @@ a.iconbtn{display:grid;place-items:center;text-decoration:none}
 .ptoggle:active{transform:scale(.85)}.ptoggle:disabled{opacity:.3}
 .ptarget{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .ptarget select{height:44px;border:0;border-radius:var(--r2);background:var(--b2);padding:0 12px;font:inherit;font-size:15px;color:var(--ink)}
+
+.legtxt em.far{background:#FBE3D6;color:#A05A3C;margin-left:4px}
