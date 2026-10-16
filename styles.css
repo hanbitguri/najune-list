@@ -245,7 +245,7 @@ a.iconbtn{display:grid;place-items:center;text-decoration:none}
 .prow{display:flex;gap:8px;align-items:flex-start;background:var(--w);border-radius:var(--r2);padding:12px;box-shadow:var(--sh1);animation:rise .45s var(--ease) both;animation-delay:calc(var(--i) * 40ms);transition:opacity .3s,transform .3s var(--spring),filter .3s}
 .prow.skip{opacity:.5;filter:saturate(.3)}.prow.loading{opacity:.6;pointer-events:none}
 .prow.swap .pmatch{animation:fade .35s var(--ease)}
-.ptime{flex:none;width:76px;height:32px;border:0;border-radius:16px;background:var(--b2);font:inherit;font-size:13px;text-align:center;color:var(--ink);padding:0 4px}
+.ptime{flex:none;width:92px;height:32px;border:0;border-radius:16px;background:var(--b2);font:inherit;font-size:12px;font-variant-numeric:tabular-nums;text-align:center;color:var(--ink);padding:0 4px}
 .ptime:not([value=""]){background:var(--mint)}
 .pbody{flex:1;min-width:0}
 .praw{display:block;font-size:11px;color:var(--sub);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
