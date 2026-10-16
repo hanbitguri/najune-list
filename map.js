@@ -79,14 +79,14 @@ const MapView = (() => {
     relayout() { ready && map.relayout(); },
     onLongPress(cb) { onLong = cb; },
     onDragStart(cb) { onDrag = cb; },
-    search(q) {
+    search(q, near) {
       return new Promise((res, rej) => { if (!ready) return rej(new Error('map not ready'));
         const CAT = { FD6: 'food', CE7: 'cafe', AD5: 'stay', AT4: 'sight' };
         ps.keywordSearch(q, (data, status) => {
           if (status === kakao.maps.services.Status.OK) res(data.slice(0, 10).map(d => ({ name: d.place_name, address: d.road_address_name || d.address_name,
-            sub: d.category_name, lat: +d.y, lng: +d.x, category: CAT[d.category_group_code] || 'etc', kakaoId: d.id })));
+            sub: d.category_name, lat: +d.y, lng: +d.x, category: CAT[d.category_group_code] || "etc", kakaoId: d.id, dist: d.distance === "" || d.distance == null ? null : +d.distance })));
           else if (status === kakao.maps.services.Status.ZERO_RESULT) res([]); else rej(new Error(status));
-        }, { location: map.getCenter(), size: 10 });
+        }, { location: near ? LL(near.lat, near.lng) : map.getCenter(), size: 10 });
       });
     }
   };
